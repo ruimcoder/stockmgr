@@ -30,6 +30,8 @@ class StockItem(SQLModel, table=True):
     storage_bucket: str = Field(default="", nullable=False)
     expiry_date: date = Field(nullable=False)
     quantity: int = Field(default=0, nullable=False)
+    unidose_per_pack: int = Field(default=1, nullable=False)
+    target_unidoses_location: int = Field(default=0, nullable=False)
     temp_min_c: float | None = Field(default=None)
     temp_max_c: float | None = Field(default=None)
     humidity_min_pct: float | None = Field(default=None)

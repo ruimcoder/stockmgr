@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -216,6 +217,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "storage_bucket",
         "expiry_date",
         "quantity",
+        "unidose_per_pack",
+        "target_unidoses_location",
         "temp_min_c",
         "temp_max_c",
         "humidity_min_pct",
@@ -226,6 +229,10 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         if key == "storage_bucket":
             payload[key] = value if value not in ("", None) else ""
         elif key == "quantity":
+            payload[key] = int(value) if value not in ("", None) else 0
+        elif key == "unidose_per_pack":
+            payload[key] = int(value) if value not in ("", None) else 1
+        elif key == "target_unidoses_location":
             payload[key] = int(value) if value not in ("", None) else 0
         else:
             payload[key] = value if value not in ("", None) else None
@@ -403,16 +410,34 @@ def index(request: Request, session: Session = Depends(get_session)):
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
     user = maybe_user
-    statement = (
-        select(StockItem)
-        .where(StockItem.user_id == user.id)
-        .order_by(StockItem.name, StockItem.batch_code, StockItem.expiry_date)
-    )
+    bucket_filter = request.query_params.get("bucket_filter", "all")
+    location_filter = request.query_params.get("location_filter", "").strip()
+    statement = select(StockItem).where(StockItem.user_id == user.id)
+    if bucket_filter == "assigned":
+        statement = statement.where(StockItem.storage_bucket != "")
+    elif bucket_filter == "unassigned":
+        statement = statement.where(StockItem.storage_bucket == "")
+    if location_filter:
+        statement = statement.where(StockItem.storage_location == location_filter)
+    statement = statement.order_by(StockItem.name, StockItem.batch_code, StockItem.expiry_date)
     items = session.exec(statement).all()
+    locations = session.exec(
+        select(StockItem.storage_location)
+        .where(StockItem.user_id == user.id)
+        .distinct()
+        .order_by(StockItem.storage_location)
+    ).all()
     return _render(
         request,
         "index.html",
-        {"user": user, "items": items, "message": _fetch_message(request)},
+        {
+            "user": user,
+            "items": items,
+            "locations": locations,
+            "bucket_filter": bucket_filter,
+            "location_filter": location_filter,
+            "message": _fetch_message(request),
+        },
     )
 
 
@@ -439,6 +464,8 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.item_type,
             StockItem.storage_location,
             func.sum(StockItem.quantity).label("quantity"),
+            func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
+            func.max(StockItem.target_unidoses_location).label("target_unidoses"),
         )
         .where(StockItem.user_id == user.id)
         .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
@@ -451,6 +478,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.storage_location,
             StockItem.expiry_date,
             func.sum(StockItem.quantity).label("quantity"),
+            func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
         )
         .where(StockItem.user_id == user.id)
         .group_by(
@@ -472,6 +500,51 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             "validity_rows": session.exec(by_location_expiry_query).all(),
         },
     )
+
+
+@app.get("/shopping-list")
+def shopping_list(request: Request, session: Session = Depends(get_session)):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+    location_rows = session.exec(
+        select(
+            StockItem.name,
+            StockItem.item_type,
+            StockItem.storage_location,
+            func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
+            func.max(StockItem.target_unidoses_location).label("target_unidoses"),
+            func.max(StockItem.unidose_per_pack).label("unidose_per_pack"),
+        )
+        .where(StockItem.user_id == user.id)
+        .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
+        .order_by(StockItem.name, StockItem.storage_location)
+    ).all()
+
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in location_rows:
+        name, item_type, location, total_u, target_u, per_pack = row
+        total_unidoses = int(total_u or 0)
+        target_unidoses = int(target_u or 0)
+        per_pack_value = max(1, int(per_pack or 1))
+        delta_unidoses = max(target_unidoses - total_unidoses, 0)
+        qty_to_buy = math.ceil(delta_unidoses / per_pack_value) if delta_unidoses else 0
+        key = (name, item_type)
+        if key not in grouped:
+            grouped[key] = {
+                "name": name,
+                "item_type": item_type,
+                "total_quantity_to_buy": 0,
+                "distribution": [],
+            }
+        grouped[key]["total_quantity_to_buy"] += qty_to_buy
+        if qty_to_buy > 0:
+            grouped[key]["distribution"].append(f"{location}: {qty_to_buy}")
+
+    rows = [value for value in grouped.values() if value["total_quantity_to_buy"] > 0]
+    rows.sort(key=lambda item: (item["name"], item["item_type"]))
+    return _render(request, "shopping_list.html", {"user": user, "rows": rows})
 
 
 @app.get("/renewals")
@@ -566,7 +639,12 @@ def item_new(request: Request, session: Session = Depends(get_session)):
     return _render(
         request,
         "item_form.html",
-        {"user": maybe_user, "mode": "create", "draft": {"quantity": 0}, "lookup": None},
+        {
+            "user": maybe_user,
+            "mode": "create",
+            "draft": {"quantity": 0, "unidose_per_pack": 1, "target_unidoses_location": 0},
+            "lookup": None,
+        },
     )
 
 
@@ -608,6 +686,8 @@ async def lookup_for_form(
                 "batch_code": "",
                 "storage_location": "",
                 "storage_bucket": "",
+                "unidose_per_pack": 1,
+                "target_unidoses_location": 0,
             }
         )
     return _render(

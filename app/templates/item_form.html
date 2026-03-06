@@ -89,6 +89,14 @@
       <label class="form-label">{{ t("label.quantity") }}</label>
       <input class="form-control" name="quantity" type="number" min="0" step="1" value="{{ draft.quantity or 0 }}" />
     </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
+      <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.target_unidoses_location") }}</label>
+      <input class="form-control" name="target_unidoses_location" type="number" min="0" step="1" value="{{ draft.target_unidoses_location or 0 }}" />
+    </div>
     <div class="col-md-3">
       <label class="form-label">{{ t("label.temp_min") }}</label>
       <input class="form-control" name="temp_min_c" type="number" step="0.1" value="{{ draft.temp_min_c or '' }}" />

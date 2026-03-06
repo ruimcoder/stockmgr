@@ -5,7 +5,7 @@
 <div class="card mb-3">
   <div class="card-header">{{ t("stock.overall") }}</div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0">
+    <table class="table table-striped mb-0" data-enhanced-table>
       <thead>
         <tr>
           <th>{{ t("table.name") }}</th>
@@ -31,13 +31,16 @@
 <div class="card mb-3">
   <div class="card-header">{{ t("stock.by_location") }}</div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0">
+    <table class="table table-striped mb-0" data-enhanced-table>
       <thead>
         <tr>
           <th>{{ t("table.name") }}</th>
           <th>{{ t("table.type") }}</th>
           <th>{{ t("table.location") }}</th>
           <th>{{ t("table.quantity") }}</th>
+          <th>{{ t("table.total_unidoses") }}</th>
+          <th>{{ t("table.target_unidoses") }}</th>
+          <th>{{ t("table.delta_unidoses") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -47,9 +50,12 @@
           <td>{{ row[1] }}</td>
           <td>{{ row[2] }}</td>
           <td>{{ row[3] }}</td>
+          <td>{{ row[4] or 0 }}</td>
+          <td>{{ row[5] or 0 }}</td>
+          <td>{{ (row[5] or 0) - (row[4] or 0) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="text-muted text-center py-3">{{ t("stock.no_data") }}</td></tr>
+        <tr><td colspan="7" class="text-muted text-center py-3">{{ t("stock.no_data") }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -59,7 +65,7 @@
 <div class="card">
   <div class="card-header">{{ t("stock.by_location_validity") }}</div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0">
+    <table class="table table-striped mb-0" data-enhanced-table>
       <thead>
         <tr>
           <th>{{ t("table.name") }}</th>
@@ -67,6 +73,7 @@
           <th>{{ t("table.location") }}</th>
           <th>{{ t("table.expiry") }}</th>
           <th>{{ t("table.quantity") }}</th>
+          <th>{{ t("table.total_unidoses") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -77,9 +84,10 @@
           <td>{{ row[2] }}</td>
           <td>{{ row[3] }}</td>
           <td>{{ row[4] }}</td>
+          <td>{{ row[5] or 0 }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="text-muted text-center py-3">{{ t("stock.no_data") }}</td></tr>
+        <tr><td colspan="6" class="text-muted text-center py-3">{{ t("stock.no_data") }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

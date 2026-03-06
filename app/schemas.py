@@ -13,6 +13,8 @@ class ItemBase(BaseModel):
     storage_bucket: str = ""
     expiry_date: date
     quantity: int = Field(default=0, ge=0)
+    unidose_per_pack: int = Field(default=1, ge=1)
+    target_unidoses_location: int = Field(default=0, ge=0)
     temp_min_c: float | None = None
     temp_max_c: float | None = None
     humidity_min_pct: float | None = None

@@ -22,3 +22,7 @@ table th {
   min-width: 180px;
 }
 
+.table-filter-row input {
+  min-width: 100px;
+}
+

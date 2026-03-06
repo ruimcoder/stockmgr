@@ -8,8 +8,11 @@ def test_create_and_list_items(client):
         "name": "Beans",
         "item_type": "food",
         "storage_location": "Pantry",
+        "storage_bucket": "",
         "expiry_date": "2030-01-01",
         "quantity": 5,
+        "unidose_per_pack": 2,
+        "target_unidoses_location": 20,
         "renewal_date": "2029-12-01",
     }
     created = client.post("/api/items", json=payload_a)
@@ -23,8 +26,11 @@ def test_create_and_list_items(client):
         "name": "Beans",
         "item_type": "food",
         "storage_location": "Pantry",
+        "storage_bucket": "B3",
         "expiry_date": "2030-03-01",
         "quantity": 2,
+        "unidose_per_pack": 2,
+        "target_unidoses_location": 20,
     }
     created_b = client.post("/api/items", json=payload_b)
     assert created_b.status_code == 200
@@ -34,6 +40,15 @@ def test_create_and_list_items(client):
     assert len(listed.json()) == 2
     assert listed.json()[0]["storage_location"] == "Pantry"
     assert listed.json()[0]["quantity"] >= 0
+
+    filtered_unassigned = client.get("/?bucket_filter=unassigned")
+    assert filtered_unassigned.status_code == 200
+    assert "LOT-A" in filtered_unassigned.text
+    assert "LOT-B" not in filtered_unassigned.text
+
+    filtered_location = client.get("/?location_filter=Pantry")
+    assert filtered_location.status_code == 200
+    assert "Pantry" in filtered_location.text
 
 
 def test_required_expiry_date_enforced(client):
@@ -96,6 +111,8 @@ def test_stock_views_and_product_detail_with_movement_log(client):
         "storage_bucket": "Bucket 3",
         "expiry_date": "2028-11-11",
         "quantity": 10,
+        "unidose_per_pack": 2,
+        "target_unidoses_location": 30,
     }
     created = client.post("/api/items", json=payload)
     assert created.status_code == 200
@@ -105,6 +122,7 @@ def test_stock_views_and_product_detail_with_movement_log(client):
     assert views.status_code == 200
     assert "Per product (overall)" in views.text
     assert "Pasta" in views.text
+    assert "Total unidoses" in views.text
 
     move = client.post(
         f"/items/{item_id}/move",
@@ -116,3 +134,8 @@ def test_stock_views_and_product_detail_with_movement_log(client):
     detail = client.get("/products/by-name/food/Pasta")
     assert detail.status_code == 200
     assert "Consumed one" in detail.text
+
+    shopping = client.get("/shopping-list")
+    assert shopping.status_code == 200
+    assert "Pasta" in shopping.text
+    assert "Pontevel: 6" in shopping.text

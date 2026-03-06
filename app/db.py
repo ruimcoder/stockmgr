@@ -58,10 +58,24 @@ def _migrate_legacy_schema() -> None:
             connection.exec_driver_sql(
                 "ALTER TABLE stockitem ADD COLUMN quantity INTEGER DEFAULT 0;"
             )
+        if "unidose_per_pack" not in existing_names:
+            connection.exec_driver_sql(
+                "ALTER TABLE stockitem ADD COLUMN unidose_per_pack INTEGER DEFAULT 1;"
+            )
+        if "target_unidoses_location" not in existing_names:
+            connection.exec_driver_sql(
+                "ALTER TABLE stockitem ADD COLUMN target_unidoses_location INTEGER DEFAULT 0;"
+            )
         connection.exec_driver_sql(
             "UPDATE stockitem SET expiry_date = date('now') WHERE expiry_date IS NULL;"
         )
         connection.exec_driver_sql("UPDATE stockitem SET quantity = COALESCE(quantity, 0);")
+        connection.exec_driver_sql(
+            "UPDATE stockitem SET unidose_per_pack = COALESCE(NULLIF(unidose_per_pack, 0), 1);"
+        )
+        connection.exec_driver_sql(
+            "UPDATE stockitem SET target_unidoses_location = COALESCE(target_unidoses_location, 0);"
+        )
 
 
 def init_db() -> None:

@@ -12,7 +12,7 @@
 <div class="card mb-3">
   <div class="card-header">{{ t("product.batches") }}</div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0">
+    <table class="table table-striped mb-0" data-enhanced-table>
       <thead>
         <tr>
           <th>{{ t("table.batch") }}</th>
@@ -21,7 +21,11 @@
           <th>{{ t("table.bucket") }}</th>
           <th>{{ t("table.expiry") }}</th>
           <th>{{ t("table.quantity") }}</th>
-          <th>{{ t("product.adjust") }}</th>
+          <th>{{ t("table.unidose_per_pack") }}</th>
+          <th>{{ t("table.total_unidoses") }}</th>
+          <th>{{ t("table.target_unidoses") }}</th>
+          <th>{{ t("table.delta_unidoses") }}</th>
+          <th data-sortable="false" data-filterable="false">{{ t("product.adjust") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -33,6 +37,10 @@
           <td>{{ batch.storage_bucket or "-" }}</td>
           <td>{{ batch.expiry_date }}</td>
           <td><strong>{{ batch.quantity }}</strong></td>
+          <td>{{ batch.unidose_per_pack }}</td>
+          <td>{{ batch.quantity * batch.unidose_per_pack }}</td>
+          <td>{{ batch.target_unidoses_location }}</td>
+          <td>{{ batch.target_unidoses_location - (batch.quantity * batch.unidose_per_pack) }}</td>
           <td>
             <form method="post" action="/items/{{ batch.id }}/move" class="d-flex gap-1 flex-wrap">
               <input type="number" min="1" step="1" name="quantity_step" value="1" class="form-control form-control-sm qty-field" />
@@ -51,7 +59,7 @@
 <div class="card">
   <div class="card-header">{{ t("product.movement_log") }}</div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0">
+    <table class="table table-striped mb-0" data-enhanced-table>
       <thead>
         <tr>
           <th>{{ t("log.time") }}</th>
