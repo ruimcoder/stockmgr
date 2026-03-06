@@ -232,6 +232,9 @@ def test_stock_views_and_product_detail_with_movement_log(client):
     assert detail.status_code == 200
     assert "Product details" in detail.text
     assert f"/items/{item_id}/edit" in detail.text
+    assert "Add stock options" in detail.text
+    assert "Add new storage location" in detail.text
+    assert "Add new batch" in detail.text
     assert "Consumed one" in detail.text
 
     shopping = client.get("/shopping-list")
@@ -284,3 +287,36 @@ def test_item_edit_page_shows_related_batches_and_log(client):
     assert "LOT-2" in edit_page.text
     assert "Stock movement log" in edit_page.text
     assert "edit-context-note" in edit_page.text
+
+
+def test_new_item_page_prefills_product_and_location_from_query(client):
+    create_response = client.post(
+        "/api/items",
+        json={
+            "barcode": "5605555555555",
+            "batch_code": "B-01",
+            "name": "Olive Oil",
+            "item_type": "food",
+            "storage_location": "Kitchen",
+            "storage_bucket": "Shelf 1",
+            "expiry_date": "2031-01-01",
+            "quantity": 2,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 5,
+        },
+    )
+    assert create_response.status_code == 200
+
+    prefilled_for_new_location = client.get(
+        "/items/new?name=Olive%20Oil&item_type=food&barcode=5605555555555"
+    )
+    assert prefilled_for_new_location.status_code == 200
+    assert 'name="name" value="Olive Oil"' in prefilled_for_new_location.text
+    assert 'name="item_type" value="food"' in prefilled_for_new_location.text
+    assert 'name="barcode" value="5605555555555"' in prefilled_for_new_location.text
+
+    prefilled_for_batch = client.get(
+        "/items/new?name=Olive%20Oil&item_type=food&barcode=5605555555555&storage_location=Kitchen"
+    )
+    assert prefilled_for_batch.status_code == 200
+    assert 'name="storage_location" value="Kitchen"' in prefilled_for_batch.text

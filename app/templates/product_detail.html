@@ -49,6 +49,40 @@
 </div>
 
 <div class="card mb-3">
+  <div class="card-header">{{ t("product.add_stock_options") }}</div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <form method="get" action="/items/new" class="d-grid gap-2">
+          <input type="hidden" name="name" value="{{ product_name }}" />
+          <input type="hidden" name="item_type" value="{{ item_type }}" />
+          <input type="hidden" name="barcode" value="{{ product_summary.barcode or '' }}" />
+          <button class="btn btn-outline-success" type="submit">{{ t("product.add_new_location") }}</button>
+        </form>
+      </div>
+      <div class="col-md-6">
+        <form method="get" action="/items/new" class="row g-2">
+          <input type="hidden" name="name" value="{{ product_name }}" />
+          <input type="hidden" name="item_type" value="{{ item_type }}" />
+          <input type="hidden" name="barcode" value="{{ product_summary.barcode or '' }}" />
+          <div class="col-8">
+            <label class="form-label">{{ t("product.location_for_batch") }}</label>
+            <select class="form-select" name="storage_location" required>
+              {% for location in location_options %}
+              <option value="{{ location }}">{{ location }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-4 d-flex align-items-end">
+            <button class="btn btn-outline-primary w-100" type="submit">{{ t("product.add_new_batch") }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
   <div class="card-header">{{ t("product.batches") }}</div>
   <div class="table-responsive">
     <table class="table table-striped mb-0" data-enhanced-table>

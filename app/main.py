@@ -741,6 +741,9 @@ def product_detail(
         "total_quantity": sum(batch.quantity for batch in batches),
         "total_unidoses": sum(batch.quantity * batch.unidose_per_pack for batch in batches),
     }
+    location_options = sorted(
+        {batch.storage_location for batch in batches if batch.storage_location}
+    )
 
     movement_query = (
         select(StockMovement, StockItem)
@@ -762,6 +765,7 @@ def product_detail(
             "product_name": product_name,
             "edit_item_id": primary_batch.id,
             "product_summary": product_summary,
+            "location_options": location_options,
             "batches": batches,
             "movement_rows": movement_rows,
             "message": _fetch_message(request),
@@ -776,6 +780,9 @@ def item_new(request: Request, session: Session = Depends(get_session)):
         return maybe_user
     prefill_name = request.query_params.get("name", "").strip()
     prefill_barcode = request.query_params.get("barcode", "").replace(" ", "").strip()
+    prefill_item_type = request.query_params.get("item_type", "").strip()
+    prefill_location = request.query_params.get("storage_location", "").strip()
+    prefill_bucket = request.query_params.get("storage_bucket", "").strip()
     return _render(
         request,
         "item_form.html",
@@ -784,7 +791,10 @@ def item_new(request: Request, session: Session = Depends(get_session)):
             "mode": "create",
             "draft": {
                 "name": prefill_name,
+                "item_type": prefill_item_type or "unknown",
                 "barcode": prefill_barcode,
+                "storage_location": prefill_location,
+                "storage_bucket": prefill_bucket,
                 "quantity": 0,
                 "unidose_per_pack": 1,
                 "target_unidoses_location": 0,
