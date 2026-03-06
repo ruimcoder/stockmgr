@@ -34,17 +34,25 @@
     <div class="row g-2 mt-2">
       <div class="col-md-6">
         <video id="barcode-camera-preview" class="w-100 rounded border" playsinline muted></video>
+        <div id="barcode-fallback-reader-container" class="d-none mt-2">
+          <div id="barcode-fallback-reader" class="border rounded"></div>
+        </div>
       </div>
       <div class="col-md-6 d-flex flex-column gap-2">
         <button class="btn btn-outline-success" id="start-camera-scan" type="button">{{ t("item.start_camera_scan") }}</button>
         <button class="btn btn-outline-secondary" id="stop-camera-scan" type="button">{{ t("item.stop_camera_scan") }}</button>
+        <div class="small text-muted">{{ t("item.camera_permission_hint") }}</div>
         <div
           id="barcode-scan-status"
           class="small text-muted"
           data-idle="{{ t('item.camera_idle') }}"
           data-unsupported="{{ t('item.camera_unsupported') }}"
+          data-secure-context-required="{{ t('item.camera_secure_context_required') }}"
+          data-media-unsupported="{{ t('item.camera_media_unsupported') }}"
+          data-permission-denied="{{ t('item.camera_permission_denied') }}"
           data-permission-error="{{ t('item.camera_permission_error') }}"
           data-scanning="{{ t('item.camera_scanning') }}"
+          data-fallback-scanning="{{ t('item.camera_fallback_scanning') }}"
           data-detected="{{ t('item.camera_detected') }}"
         >
           {{ t("item.camera_idle") }}
@@ -124,6 +132,7 @@
   </div>
 </form>
 {% if mode != "edit" %}
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 <script src="{{ url_for('static', path='barcode-camera.js') }}"></script>
 {% endif %}
 {% endblock %}

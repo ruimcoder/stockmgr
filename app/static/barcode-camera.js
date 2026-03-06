@@ -8,20 +8,52 @@
   const startButton = document.getElementById("start-camera-scan");
   const stopButton = document.getElementById("stop-camera-scan");
   const video = document.getElementById("barcode-camera-preview");
+  const fallbackContainer = document.getElementById("barcode-fallback-reader-container");
   const status = document.getElementById("barcode-scan-status");
+
+  const supportsMediaDevices = !!(
+    navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+  );
+  const supportsBarcodeDetector = "BarcodeDetector" in window;
+  const supportsHtml5Qrcode = typeof window.Html5Qrcode === "function";
+
+  const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
 
   let detector = null;
   let stream = null;
-  let timerHandle = null;
+  let animationFrameHandle = null;
+  let html5Scanner = null;
+  let usingFallback = false;
+  let hasDetectedValue = false;
+  let isStarting = false;
 
   const setStatus = (text) => {
+    if (!status) {
+      return;
+    }
     status.textContent = text;
   };
 
-  const stopScanner = () => {
-    if (timerHandle) {
-      window.clearInterval(timerHandle);
-      timerHandle = null;
+  const setControls = (scanning) => {
+    if (startButton) {
+      startButton.disabled = scanning || isStarting;
+    }
+    if (stopButton) {
+      stopButton.disabled = !scanning;
+    }
+  };
+
+  const setFallbackVisibility = (visible) => {
+    if (!fallbackContainer) {
+      return;
+    }
+    fallbackContainer.classList.toggle("d-none", !visible);
+  };
+
+  const stopNativeScanner = () => {
+    if (animationFrameHandle) {
+      window.cancelAnimationFrame(animationFrameHandle);
+      animationFrameHandle = null;
     }
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -30,10 +62,50 @@
     if (video) {
       video.srcObject = null;
     }
-    setStatus(status.dataset.idle);
+    detector = null;
   };
 
-  const processFrame = async () => {
+  const stopFallbackScanner = async () => {
+    if (!html5Scanner) {
+      return;
+    }
+    try {
+      await html5Scanner.stop();
+    } catch (_error) {
+      // Ignore stop race conditions when scanner has already stopped.
+    }
+    try {
+      await html5Scanner.clear();
+    } catch (_error) {
+      // Ignore clear errors to keep stop flow resilient.
+    }
+    html5Scanner = null;
+    usingFallback = false;
+    setFallbackVisibility(false);
+  };
+
+  const stopScanner = async ({ preserveStatus = false } = {}) => {
+    stopNativeScanner();
+    await stopFallbackScanner();
+    hasDetectedValue = false;
+    setControls(false);
+    if (!preserveStatus) {
+      setStatus(status.dataset.idle);
+    }
+  };
+
+  const submitDetectedBarcode = async (rawValue) => {
+    if (!rawValue || hasDetectedValue) {
+      return;
+    }
+    hasDetectedValue = true;
+    barcodeInput.value = rawValue;
+    setStatus(status.dataset.detected);
+    await stopScanner({ preserveStatus: true });
+    lookupForm.requestSubmit();
+  };
+
+  const processNativeFrame = async () => {
     if (!detector || !video || video.readyState < 2) {
       return;
     }
@@ -46,40 +118,142 @@
       if (!rawValue) {
         return;
       }
-      barcodeInput.value = rawValue;
-      setStatus(status.dataset.detected);
-      stopScanner();
-      lookupForm.requestSubmit();
+      await submitDetectedBarcode(rawValue);
     } catch (_error) {
       // Keep scanning; intermittent detection errors are expected on some devices.
     }
   };
 
-  const startScanner = async () => {
-    if (!("BarcodeDetector" in window)) {
-      setStatus(status.dataset.unsupported);
-      return;
-    }
-
-    try {
-      detector = new window.BarcodeDetector({
-        formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"],
+  const nativeScanLoop = async () => {
+    await processNativeFrame();
+    if (stream) {
+      animationFrameHandle = window.requestAnimationFrame(() => {
+        void nativeScanLoop();
       });
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
-      video.srcObject = stream;
-      await video.play();
-      setStatus(status.dataset.scanning);
-      timerHandle = window.setInterval(processFrame, 350);
-    } catch (_error) {
-      stopScanner();
-      setStatus(status.dataset.permissionError);
     }
   };
 
-  startButton.addEventListener("click", startScanner);
-  stopButton.addEventListener("click", stopScanner);
+  const queryPermissionDenied = async () => {
+    if (!navigator.permissions || !navigator.permissions.query) {
+      return false;
+    }
+    try {
+      const result = await navigator.permissions.query({ name: "camera" });
+      return result.state === "denied";
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  const startNativeScanner = async () => {
+    const supportedFormats = await window.BarcodeDetector.getSupportedFormats?.();
+    const selectedFormats =
+      supportedFormats && supportedFormats.length
+        ? preferredFormats.filter((format) => supportedFormats.includes(format))
+        : preferredFormats;
+    detector = new window.BarcodeDetector({
+      formats: selectedFormats.length ? selectedFormats : preferredFormats,
+    });
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+    setStatus(status.dataset.scanning);
+    setControls(true);
+    animationFrameHandle = window.requestAnimationFrame(() => {
+      void nativeScanLoop();
+    });
+  };
+
+  const startFallbackScanner = async () => {
+    if (!supportsHtml5Qrcode) {
+      setStatus(status.dataset.unsupported);
+      return;
+    }
+    const formatsEnum = window.Html5QrcodeSupportedFormats || {};
+    const formats = ["EAN_13", "EAN_8", "UPC_A", "UPC_E", "CODE_128"]
+      .map((key) => formatsEnum[key])
+      .filter(Boolean);
+    usingFallback = true;
+    setFallbackVisibility(true);
+    html5Scanner = new window.Html5Qrcode("barcode-fallback-reader", {
+      formatsToSupport: formats.length ? formats : undefined,
+      verbose: false,
+    });
+    await html5Scanner.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: { width: 280, height: 160 },
+      },
+      (decodedText) => {
+        void submitDetectedBarcode(decodedText);
+      },
+      () => {}
+    );
+    setStatus(status.dataset.fallbackScanning);
+    setControls(true);
+  };
+
+  const startScanner = async () => {
+    if (isStarting || stream || usingFallback) {
+      return;
+    }
+    if (!window.isSecureContext) {
+      setStatus(status.dataset.secureContextRequired);
+      return;
+    }
+    if (!supportsMediaDevices) {
+      setStatus(status.dataset.mediaUnsupported);
+      return;
+    }
+    if (await queryPermissionDenied()) {
+      setStatus(status.dataset.permissionDenied);
+      return;
+    }
+
+    isStarting = true;
+    setControls(false);
+    try {
+      if (supportsBarcodeDetector) {
+        await startNativeScanner();
+      } else {
+        await startFallbackScanner();
+      }
+    } catch (_error) {
+      await stopScanner();
+      setStatus(status.dataset.permissionError);
+    } finally {
+      isStarting = false;
+      if (!stream && !usingFallback) {
+        setControls(false);
+      }
+    }
+  };
+
+  setControls(false);
+  setFallbackVisibility(false);
+  setStatus(status.dataset.idle);
+
+  startButton.addEventListener("click", () => {
+    void startScanner();
+  });
+  stopButton.addEventListener("click", () => {
+    void stopScanner();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      void stopScanner();
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    void stopScanner();
+  });
 })();
 

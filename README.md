@@ -10,7 +10,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Supports stock quantity per batch, including increment/decrement operations with optional notes and movement logs.
 - Supports unidose planning fields (`unidose_per_pack`, `target_unidoses_location`) and automatic unidoses delta calculations per location.
 - Barcode lookup endpoint backed by provider-priority config (Portugal-first defaults).
-- User-friendly web UI for manual entry, barcode-assisted entry, camera barcode scanning with automatic search submit, datagrid listing/editing, and file import.
+- User-friendly web UI for manual entry, barcode-assisted entry, camera barcode scanning with automatic search submit, compatibility fallback mode for unsupported browsers, datagrid listing/editing, and file import.
 - Multilanguage UI switcher (Portuguese and English).
 - Stock views include: per product overall, per product and storage location, and per product/location/expiry.
 - Stock list supports filtering by bucket assignment (assigned/unassigned) and storage location.
@@ -41,6 +41,8 @@ uvicorn app.main:app --reload
 ```
 
 Open: `http://127.0.0.1:8000`
+
+> Camera scanning works on `localhost` and HTTPS deployments. Browsers require explicit camera permission approval.
 
 ## Local test run
 ```powershell

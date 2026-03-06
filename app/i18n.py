@@ -65,12 +65,25 @@ TRANSLATIONS = {
         "item.lookup_barcode": "Lookup Barcode",
         "item.start_camera_scan": "Start Camera Scan",
         "item.stop_camera_scan": "Stop Camera Scan",
+        "item.camera_permission_hint": (
+            "Camera access requires HTTPS and browser permission approval."
+        ),
         "item.camera_idle": "Camera scanner is idle.",
         "item.camera_unsupported": "Camera barcode scanning is not supported in this browser.",
+        "item.camera_secure_context_required": (
+            "Camera scanning requires a secure context (HTTPS or localhost)."
+        ),
+        "item.camera_media_unsupported": (
+            "Camera APIs are unavailable on this device/browser."
+        ),
+        "item.camera_permission_denied": (
+            "Camera permission is denied. Enable it in browser settings."
+        ),
         "item.camera_permission_error": (
             "Could not access camera. Please check browser permissions."
         ),
         "item.camera_scanning": "Scanning barcode...",
+        "item.camera_fallback_scanning": "Scanning barcode with compatibility mode...",
         "item.camera_detected": "Barcode detected, searching product...",
         "item.mandatory_note": "Mandatory fields: Type, Name, Storage location, Expiry date.",
         "label.barcode": "Barcode",
@@ -205,12 +218,27 @@ TRANSLATIONS = {
         "item.lookup_barcode": "Pesquisar codigo",
         "item.start_camera_scan": "Iniciar leitura com camera",
         "item.stop_camera_scan": "Parar leitura com camera",
+        "item.camera_permission_hint": (
+            "O acesso a camera requer HTTPS e aprovacao de permissoes no navegador."
+        ),
         "item.camera_idle": "Leitor de camera inativo.",
         "item.camera_unsupported": "Leitura por camera nao suportada neste navegador.",
+        "item.camera_secure_context_required": (
+            "A leitura por camera requer contexto seguro (HTTPS ou localhost)."
+        ),
+        "item.camera_media_unsupported": (
+            "APIs de camera indisponiveis neste dispositivo/navegador."
+        ),
+        "item.camera_permission_denied": (
+            "Permissao da camera negada. Ative-a nas definicoes do navegador."
+        ),
         "item.camera_permission_error": (
             "Nao foi possivel aceder a camera. Verifique as permissoes."
         ),
         "item.camera_scanning": "A ler codigo de barras...",
+        "item.camera_fallback_scanning": (
+            "A ler codigo de barras em modo de compatibilidade..."
+        ),
         "item.camera_detected": "Codigo detetado, a pesquisar produto...",
         "item.mandatory_note": (
             "Campos obrigatorios: Tipo, Nome, Localizacao de armazenamento, Data de validade."

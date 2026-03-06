@@ -88,6 +88,15 @@ def test_barcode_lookup_endpoint(client, monkeypatch):
     assert body["data"]["name"] == "Canned Tuna"
 
 
+def test_item_form_camera_compatibility_elements(client):
+    response = client.get("/items/new")
+    assert response.status_code == 200
+    assert "barcode-fallback-reader-container" in response.text
+    assert "html5-qrcode" in response.text
+    assert "data-secure-context-required" in response.text
+    assert "data-permission-denied" in response.text
+
+
 def test_csv_import_route(client):
     csv_bytes = (
         b"name,item_type,storage_location,batch_code,expiry_date,quantity,renewal_date\n"
