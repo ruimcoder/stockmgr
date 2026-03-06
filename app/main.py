@@ -253,6 +253,61 @@ def _looks_like_barcode(value: str) -> bool:
     return normalized.isdigit() and 8 <= len(normalized) <= 20
 
 
+def _product_batches(
+    session: Session,
+    *,
+    user_id: int,
+    item_type: str,
+    product_name: str,
+) -> list[StockItem]:
+    batch_query = (
+        select(StockItem)
+        .where(
+            StockItem.user_id == user_id,
+            StockItem.item_type == item_type,
+            StockItem.name == product_name,
+        )
+        .order_by(StockItem.expiry_date, StockItem.storage_location, StockItem.storage_bucket)
+    )
+    return session.exec(batch_query).all()
+
+
+def _product_update_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
+    name = str(form.get("name", "")).strip()
+    item_type = str(form.get("item_type", "")).strip()
+    if not name:
+        raise ValueError("Product name is required.")
+    if not item_type:
+        raise ValueError("Product type is required.")
+
+    payload: dict[str, Any] = {
+        "name": name,
+        "item_type": item_type,
+        "barcode": str(form.get("barcode", "")).strip() or None,
+    }
+
+    for key in ("temp_min_c", "temp_max_c", "humidity_min_pct", "humidity_max_pct"):
+        raw = form.get(key)
+        if raw in ("", None):
+            payload[key] = None
+            continue
+        try:
+            payload[key] = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid numeric value for {key}.") from exc
+
+    renewal_raw = form.get("renewal_date")
+    if renewal_raw in ("", None):
+        payload["renewal_date"] = None
+    else:
+        try:
+            payload["renewal_date"] = date.fromisoformat(str(renewal_raw))
+        except ValueError as exc:
+            raise ValueError("Invalid renewal date format.") from exc
+
+    return payload
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -701,18 +756,27 @@ def product_detail(
         return maybe_user
     user = maybe_user
 
-    batch_query = (
-        select(StockItem)
-        .where(
-            StockItem.user_id == user.id,
-            StockItem.item_type == item_type,
-            StockItem.name == product_name,
-        )
-        .order_by(StockItem.expiry_date, StockItem.storage_location, StockItem.storage_bucket)
+    batches = _product_batches(
+        session,
+        user_id=user.id,
+        item_type=item_type,
+        product_name=product_name,
     )
-    batches = session.exec(batch_query).all()
     if not batches:
         raise HTTPException(status_code=404, detail="Product not found.")
+
+    primary_batch = batches[0]
+    product_summary = {
+        "barcode": primary_batch.barcode,
+        "temp_min_c": primary_batch.temp_min_c,
+        "temp_max_c": primary_batch.temp_max_c,
+        "humidity_min_pct": primary_batch.humidity_min_pct,
+        "humidity_max_pct": primary_batch.humidity_max_pct,
+        "renewal_date": primary_batch.renewal_date,
+        "batch_count": len(batches),
+        "total_quantity": sum(batch.quantity for batch in batches),
+        "total_unidoses": sum(batch.quantity * batch.unidose_per_pack for batch in batches),
+    }
 
     movement_query = (
         select(StockMovement, StockItem)
@@ -732,11 +796,93 @@ def product_detail(
             "user": user,
             "item_type": item_type,
             "product_name": product_name,
+            "product_summary": product_summary,
             "batches": batches,
             "movement_rows": movement_rows,
             "message": _fetch_message(request),
         },
     )
+
+
+@app.get("/products/by-name/{item_type}/{product_name}/edit")
+def product_edit_page(
+    item_type: str,
+    product_name: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    batches = _product_batches(
+        session,
+        user_id=user.id,
+        item_type=item_type,
+        product_name=product_name,
+    )
+    if not batches:
+        raise HTTPException(status_code=404, detail="Product not found.")
+    draft = batches[0]
+    return _render(
+        request,
+        "product_edit.html",
+        {
+            "user": user,
+            "item_type": item_type,
+            "product_name": product_name,
+            "draft": draft,
+        },
+    )
+
+
+@app.post("/products/by-name/{item_type}/{product_name}/edit")
+async def product_edit_submit(
+    item_type: str,
+    product_name: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    batches = _product_batches(
+        session,
+        user_id=user.id,
+        item_type=item_type,
+        product_name=product_name,
+    )
+    if not batches:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    form = await request.form()
+    try:
+        payload = _product_update_payload_from_form(dict(form))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    now = datetime.now(UTC)
+    for batch in batches:
+        batch.name = payload["name"]
+        batch.item_type = payload["item_type"]
+        batch.barcode = payload["barcode"]
+        batch.temp_min_c = payload["temp_min_c"]
+        batch.temp_max_c = payload["temp_max_c"]
+        batch.humidity_min_pct = payload["humidity_min_pct"]
+        batch.humidity_max_pct = payload["humidity_max_pct"]
+        batch.renewal_date = payload["renewal_date"]
+        batch.updated_at = now
+        session.add(batch)
+    session.commit()
+    detail_url = request.url_for(
+        "product_detail",
+        item_type=payload["item_type"],
+        product_name=payload["name"],
+    )
+    return RedirectResponse(f"{detail_url}?m=product-updated", status_code=303)
 
 
 @app.get("/items/new")

@@ -10,6 +10,48 @@
 {% endif %}
 
 <div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>{{ t("product.details_title") }}</span>
+    <a
+      class="btn btn-sm btn-outline-primary"
+      href="{{ url_for('product_edit_page', item_type=item_type, product_name=product_name) }}"
+    >{{ t("product.edit_details") }}</a>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("label.barcode") }}</small>
+        <strong>{{ product_summary.barcode or "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("label.temp_min") }} / {{ t("label.temp_max") }}</small>
+        <strong>{{ product_summary.temp_min_c if product_summary.temp_min_c is not none else "-" }} / {{ product_summary.temp_max_c if product_summary.temp_max_c is not none else "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("label.humidity_min") }} / {{ t("label.humidity_max") }}</small>
+        <strong>{{ product_summary.humidity_min_pct if product_summary.humidity_min_pct is not none else "-" }} / {{ product_summary.humidity_max_pct if product_summary.humidity_max_pct is not none else "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("label.renewal_date") }}</small>
+        <strong>{{ product_summary.renewal_date or "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("product.batch_count") }}</small>
+        <strong>{{ product_summary.batch_count }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("product.total_stock_quantity") }}</small>
+        <strong>{{ product_summary.total_quantity }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-muted d-block">{{ t("table.total_unidoses") }}</small>
+        <strong>{{ product_summary.total_unidoses }}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
   <div class="card-header">{{ t("product.batches") }}</div>
   <div class="table-responsive">
     <table class="table table-striped mb-0" data-enhanced-table>

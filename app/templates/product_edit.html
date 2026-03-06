@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="h4 m-0">{{ t("product.edit_title") }}: {{ product_name }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('product_detail', item_type=item_type, product_name=product_name) }}">{{ t("common.back") }}</a>
+</div>
+<p class="text-muted mb-3">{{ t("product.edit_note") }}</p>
+
+<form method="post" action="{{ url_for('product_edit_submit', item_type=item_type, product_name=product_name) }}">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.name") }}</label>
+      <input class="form-control" name="name" value="{{ draft.name }}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.type") }}</label>
+      <input class="form-control" name="item_type" value="{{ draft.item_type }}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.barcode") }}</label>
+      <input class="form-control" name="barcode" value="{{ draft.barcode or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.temp_min") }}</label>
+      <input class="form-control" name="temp_min_c" type="number" step="0.1" value="{{ draft.temp_min_c if draft.temp_min_c is not none else '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.temp_max") }}</label>
+      <input class="form-control" name="temp_max_c" type="number" step="0.1" value="{{ draft.temp_max_c if draft.temp_max_c is not none else '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.humidity_min") }}</label>
+      <input class="form-control" name="humidity_min_pct" type="number" step="0.1" value="{{ draft.humidity_min_pct if draft.humidity_min_pct is not none else '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.humidity_max") }}</label>
+      <input class="form-control" name="humidity_max_pct" type="number" step="0.1" value="{{ draft.humidity_max_pct if draft.humidity_max_pct is not none else '' }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.renewal_date") }}</label>
+      <input class="form-control" name="renewal_date" type="date" value="{{ draft.renewal_date or '' }}" />
+    </div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary" type="submit">{{ t("common.save_changes") }}</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('product_detail', item_type=item_type, product_name=product_name) }}">{{ t("common.cancel") }}</a>
+  </div>
+</form>
+{% endblock %}
