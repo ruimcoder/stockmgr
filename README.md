@@ -12,6 +12,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Barcode lookup endpoint backed by provider-priority config (Portugal-first defaults).
 - User-friendly web UI for manual entry, barcode-assisted entry, camera barcode scanning with automatic search submit, compatibility fallback mode for unsupported browsers, datagrid listing/editing, and file import.
 - Mobile-first responsive UI with installable PWA support (Android and iOS home-screen mode).
+- In-app device diagnostics page (`/device-check`) to validate camera/PWA/browser capabilities on each device.
 - Multilanguage UI switcher (Portuguese and English).
 - Stock views include: per product overall, per product and storage location, and per product/location/expiry.
 - Stock list supports filtering by bucket assignment (assigned/unassigned) and storage location.
@@ -86,7 +87,15 @@ GS1_US_API_KEY=
 ## Build and deploy
 - **CI** (`ci.yml`): lint + tests + Docker build on push/PR.
 - **Deploy** (`deploy.yml`): builds and pushes container image to `ghcr.io/<owner>/<repo>` on `main` or manual dispatch.
+- **Device smoke** (`device-smoke.yml`): Playwright smoke tests across Firefox desktop, Android Chrome emulation, and iPhone Safari emulation.
 - Optional: set `DEPLOY_WEBHOOK_URL` secret to trigger your hosting deployment after image publish.
+
+## Cross-device validation (local)
+```powershell
+uvicorn app.main:app --reload
+npx --yes playwright@1.54.2 install chromium firefox webkit
+npx --yes playwright@1.54.2 test -c playwright.config.js
+```
 
 ## Agent and requirements docs
 - Copilot instructions: `.github/copilot-instructions.md`

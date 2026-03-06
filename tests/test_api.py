@@ -116,6 +116,13 @@ def test_pwa_routes_and_bootstrap_assets(client):
     assert "Offline mode" in offline_page.text
 
 
+def test_device_check_page(client):
+    response = client.get("/device-check")
+    assert response.status_code == 200
+    assert "Device Compatibility Check" in response.text
+    assert "device-check.js" in response.text
+
+
 def test_csv_import_route(client):
     csv_bytes = (
         b"name,item_type,storage_location,batch_code,expiry_date,quantity,renewal_date\n"

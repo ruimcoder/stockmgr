@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-2">{{ t("device.title") }}</h1>
+<p class="text-muted mb-3">{{ t("device.subtitle") }}</p>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>{{ t("device.capability") }}</th>
+          <th>{{ t("device.status") }}</th>
+          <th>{{ t("device.detail") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ t("device.secure_context") }}</td>
+          <td id="cap-secure-context">-</td>
+          <td id="detail-secure-context">-</td>
+        </tr>
+        <tr>
+          <td>{{ t("device.media_devices") }}</td>
+          <td id="cap-media-devices">-</td>
+          <td id="detail-media-devices">-</td>
+        </tr>
+        <tr>
+          <td>{{ t("device.barcode_detector") }}</td>
+          <td id="cap-barcode-detector">-</td>
+          <td id="detail-barcode-detector">-</td>
+        </tr>
+        <tr>
+          <td>{{ t("device.service_worker") }}</td>
+          <td id="cap-service-worker">-</td>
+          <td id="detail-service-worker">-</td>
+        </tr>
+        <tr>
+          <td>{{ t("device.standalone") }}</td>
+          <td id="cap-standalone">-</td>
+          <td id="detail-standalone">-</td>
+        </tr>
+        <tr>
+          <td>{{ t("device.user_agent") }}</td>
+          <td>-</td>
+          <td id="detail-user-agent">-</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div
+  id="device-check-i18n"
+  class="d-none"
+  data-supported="{{ t('device.supported') }}"
+  data-not-supported="{{ t('device.not_supported') }}"
+></div>
+
+<script src="{{ url_for('static', path='device-check.js') }}"></script>
+{% endblock %}

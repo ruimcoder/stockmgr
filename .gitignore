@@ -7,4 +7,5 @@ stockmgr.db
 test_stockmgr.db
 .coverage
 htmlcov/
-
+playwright-report/
+test-results/

@@ -571,6 +571,14 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
     return _render(request, "shopping_list.html", {"user": user, "rows": rows})
 
 
+@app.get("/device-check")
+def device_check(request: Request, session: Session = Depends(get_session)):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    return _render(request, "device_check.html", {"user": maybe_user})
+
+
 @app.get("/renewals")
 def renewal_plan(
     request: Request, session: Session = Depends(get_session), days: int | None = None
