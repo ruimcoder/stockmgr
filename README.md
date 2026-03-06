@@ -17,6 +17,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Stock views include: per product overall, per product and storage location, and per product/location/expiry.
 - Stock list supports filtering by bucket assignment (assigned/unassigned) and storage location.
 - Shopping list computes quantity-to-buy totals and per-location distribution.
+- Homepage quick search: find by name or barcode, opening product detail when in stock or prefilled new-item form when not in stock.
 - All list tables support paging, column filtering, and column ordering.
 - Renewal plan includes configurable time window (`RENEWAL_WINDOW_DAYS` default, overrideable in UI).
 - Users can register; account access requires admin approval. Admins can approve/reject users and toggle admin role.

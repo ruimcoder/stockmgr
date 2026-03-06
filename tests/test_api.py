@@ -123,6 +123,68 @@ def test_device_check_page(client):
     assert "device-check.js" in response.text
 
 
+def test_home_search_routes_to_detail_or_prefilled_new_item(client):
+    in_stock_payload = {
+        "barcode": "5602222222222",
+        "batch_code": "LOT-S1",
+        "name": "Lentils",
+        "item_type": "food",
+        "storage_location": "Pantry",
+        "storage_bucket": "A1",
+        "expiry_date": "2029-10-01",
+        "quantity": 3,
+        "unidose_per_pack": 1,
+        "target_unidoses_location": 5,
+    }
+    created = client.post("/api/items", json=in_stock_payload)
+    assert created.status_code == 200
+
+    to_detail = client.post(
+        "/items/search",
+        data={"query": "5602222222222"},
+        follow_redirects=False,
+    )
+    assert to_detail.status_code == 303
+    assert "/products/by-name/food/Lentils" in to_detail.headers["location"]
+
+    to_new_by_name = client.post(
+        "/items/search",
+        data={"query": "NotInStockYet"},
+        follow_redirects=False,
+    )
+    assert to_new_by_name.status_code == 303
+    assert "/items/new?name=NotInStockYet" in to_new_by_name.headers["location"]
+
+    name_prefill = client.get("/items/new?name=NotInStockYet")
+    assert name_prefill.status_code == 200
+    assert 'name="name" value="NotInStockYet"' in name_prefill.text
+
+    out_of_stock_payload = {
+        "barcode": "5603333333333",
+        "batch_code": "LOT-S0",
+        "name": "ZeroQty",
+        "item_type": "food",
+        "storage_location": "Pantry",
+        "storage_bucket": "",
+        "expiry_date": "2029-11-01",
+        "quantity": 0,
+        "unidose_per_pack": 1,
+        "target_unidoses_location": 5,
+    }
+    created_zero = client.post("/api/items", json=out_of_stock_payload)
+    assert created_zero.status_code == 200
+
+    to_new_by_barcode = client.post(
+        "/items/search", data={"query": "5603333333333"}, follow_redirects=False
+    )
+    assert to_new_by_barcode.status_code == 303
+    assert "/items/new?barcode=5603333333333" in to_new_by_barcode.headers["location"]
+
+    barcode_prefill = client.get("/items/new?barcode=5603333333333")
+    assert barcode_prefill.status_code == 200
+    assert 'name="barcode" value="5603333333333"' in barcode_prefill.text
+
+
 def test_csv_import_route(client):
     csv_bytes = (
         b"name,item_type,storage_location,batch_code,expiry_date,quantity,renewal_date\n"

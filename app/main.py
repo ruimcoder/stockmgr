@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
@@ -247,6 +248,11 @@ def _fetch_message(request: Request) -> str | None:
     return request.query_params.get("m")
 
 
+def _looks_like_barcode(value: str) -> bool:
+    normalized = value.replace(" ", "").strip()
+    return normalized.isdigit() and 8 <= len(normalized) <= 20
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -465,6 +471,76 @@ def index(request: Request, session: Session = Depends(get_session)):
     )
 
 
+@app.post("/items/search")
+def search_item_from_home(
+    request: Request,
+    query: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+    search_value = query.strip()
+    if not search_value:
+        return RedirectResponse("/?m=search-empty", status_code=303)
+
+    is_barcode = _looks_like_barcode(search_value)
+    barcode_value = search_value.replace(" ", "").strip() if is_barcode else ""
+
+    if is_barcode:
+        barcode_match = session.exec(
+            select(StockItem)
+            .where(
+                StockItem.user_id == user.id,
+                StockItem.barcode == barcode_value,
+                StockItem.quantity > 0,
+            )
+            .order_by(StockItem.expiry_date, StockItem.updated_at.desc())
+        ).first()
+        if barcode_match:
+            detail_url = request.url_for(
+                "product_detail",
+                item_type=barcode_match.item_type,
+                product_name=barcode_match.name,
+            )
+            return RedirectResponse(str(detail_url), status_code=303)
+
+        new_item_url = f"{request.url_for('item_new')}?{urlencode({'barcode': barcode_value})}"
+        return RedirectResponse(new_item_url, status_code=303)
+
+    name_match = session.exec(
+        select(StockItem)
+        .where(
+            StockItem.user_id == user.id,
+            func.lower(StockItem.name) == search_value.lower(),
+            StockItem.quantity > 0,
+        )
+        .order_by(StockItem.expiry_date, StockItem.updated_at.desc())
+    ).first()
+    if not name_match:
+        name_match = session.exec(
+            select(StockItem)
+            .where(
+                StockItem.user_id == user.id,
+                StockItem.name.like(f"%{search_value}%"),
+                StockItem.quantity > 0,
+            )
+            .order_by(StockItem.name, StockItem.expiry_date, StockItem.updated_at.desc())
+        ).first()
+
+    if name_match:
+        detail_url = request.url_for(
+            "product_detail",
+            item_type=name_match.item_type,
+            product_name=name_match.name,
+        )
+        return RedirectResponse(str(detail_url), status_code=303)
+
+    new_item_url = f"{request.url_for('item_new')}?{urlencode({'name': search_value})}"
+    return RedirectResponse(new_item_url, status_code=303)
+
+
 @app.get("/stock/views")
 def stock_views(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
@@ -668,13 +744,21 @@ def item_new(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
+    prefill_name = request.query_params.get("name", "").strip()
+    prefill_barcode = request.query_params.get("barcode", "").replace(" ", "").strip()
     return _render(
         request,
         "item_form.html",
         {
             "user": maybe_user,
             "mode": "create",
-            "draft": {"quantity": 0, "unidose_per_pack": 1, "target_unidoses_location": 0},
+            "draft": {
+                "name": prefill_name,
+                "barcode": prefill_barcode,
+                "quantity": 0,
+                "unidose_per_pack": 1,
+                "target_unidoses_location": 0,
+            },
             "lookup": None,
         },
     )

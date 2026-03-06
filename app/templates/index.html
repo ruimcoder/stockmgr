@@ -9,6 +9,22 @@
 <div class="alert alert-success py-2">{{ t("index.action_completed") }}: {{ message }}</div>
 {% endif %}
 
+<form method="post" action="/items/search" class="row g-2 mb-3">
+  <div class="col-md-8">
+    <label class="form-label">{{ t("index.quick_search_label") }}</label>
+    <input
+      class="form-control"
+      type="text"
+      name="query"
+      placeholder="{{ t('index.quick_search_placeholder') }}"
+      required
+    />
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button class="btn btn-outline-primary w-100" type="submit">{{ t("index.quick_search_button") }}</button>
+  </div>
+</form>
+
 <form method="get" action="/" class="row g-2 mb-3">
   <div class="col-md-3">
     <label class="form-label">{{ t("filter.bucket") }}</label>
