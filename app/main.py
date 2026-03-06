@@ -272,42 +272,6 @@ def _product_batches(
     return session.exec(batch_query).all()
 
 
-def _product_update_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
-    name = str(form.get("name", "")).strip()
-    item_type = str(form.get("item_type", "")).strip()
-    if not name:
-        raise ValueError("Product name is required.")
-    if not item_type:
-        raise ValueError("Product type is required.")
-
-    payload: dict[str, Any] = {
-        "name": name,
-        "item_type": item_type,
-        "barcode": str(form.get("barcode", "")).strip() or None,
-    }
-
-    for key in ("temp_min_c", "temp_max_c", "humidity_min_pct", "humidity_max_pct"):
-        raw = form.get(key)
-        if raw in ("", None):
-            payload[key] = None
-            continue
-        try:
-            payload[key] = float(raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid numeric value for {key}.") from exc
-
-    renewal_raw = form.get("renewal_date")
-    if renewal_raw in ("", None):
-        payload["renewal_date"] = None
-    else:
-        try:
-            payload["renewal_date"] = date.fromisoformat(str(renewal_raw))
-        except ValueError as exc:
-            raise ValueError("Invalid renewal date format.") from exc
-
-    return payload
-
-
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -796,93 +760,13 @@ def product_detail(
             "user": user,
             "item_type": item_type,
             "product_name": product_name,
+            "edit_item_id": primary_batch.id,
             "product_summary": product_summary,
             "batches": batches,
             "movement_rows": movement_rows,
             "message": _fetch_message(request),
         },
     )
-
-
-@app.get("/products/by-name/{item_type}/{product_name}/edit")
-def product_edit_page(
-    item_type: str,
-    product_name: str,
-    request: Request,
-    session: Session = Depends(get_session),
-):
-    maybe_user = _require_user_or_redirect(request, session)
-    if isinstance(maybe_user, RedirectResponse):
-        return maybe_user
-    user = maybe_user
-
-    batches = _product_batches(
-        session,
-        user_id=user.id,
-        item_type=item_type,
-        product_name=product_name,
-    )
-    if not batches:
-        raise HTTPException(status_code=404, detail="Product not found.")
-    draft = batches[0]
-    return _render(
-        request,
-        "product_edit.html",
-        {
-            "user": user,
-            "item_type": item_type,
-            "product_name": product_name,
-            "draft": draft,
-        },
-    )
-
-
-@app.post("/products/by-name/{item_type}/{product_name}/edit")
-async def product_edit_submit(
-    item_type: str,
-    product_name: str,
-    request: Request,
-    session: Session = Depends(get_session),
-):
-    maybe_user = _require_user_or_redirect(request, session)
-    if isinstance(maybe_user, RedirectResponse):
-        return maybe_user
-    user = maybe_user
-
-    batches = _product_batches(
-        session,
-        user_id=user.id,
-        item_type=item_type,
-        product_name=product_name,
-    )
-    if not batches:
-        raise HTTPException(status_code=404, detail="Product not found.")
-
-    form = await request.form()
-    try:
-        payload = _product_update_payload_from_form(dict(form))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    now = datetime.now(UTC)
-    for batch in batches:
-        batch.name = payload["name"]
-        batch.item_type = payload["item_type"]
-        batch.barcode = payload["barcode"]
-        batch.temp_min_c = payload["temp_min_c"]
-        batch.temp_max_c = payload["temp_max_c"]
-        batch.humidity_min_pct = payload["humidity_min_pct"]
-        batch.humidity_max_pct = payload["humidity_max_pct"]
-        batch.renewal_date = payload["renewal_date"]
-        batch.updated_at = now
-        session.add(batch)
-    session.commit()
-    detail_url = request.url_for(
-        "product_detail",
-        item_type=payload["item_type"],
-        product_name=payload["name"],
-    )
-    return RedirectResponse(f"{detail_url}?m=product-updated", status_code=303)
 
 
 @app.get("/items/new")
@@ -919,10 +803,33 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
     item = session.get(StockItem, item_id)
     if not item or item.user_id != user.id:
         raise HTTPException(status_code=404, detail="Item not found.")
+    related_batches = _product_batches(
+        session,
+        user_id=user.id,
+        item_type=item.item_type,
+        product_name=item.name,
+    )
+    movement_rows = session.exec(
+        select(StockMovement, StockItem)
+        .join(StockItem, StockItem.id == StockMovement.stock_item_id)
+        .where(
+            StockItem.user_id == user.id,
+            StockItem.item_type == item.item_type,
+            StockItem.name == item.name,
+        )
+        .order_by(StockMovement.created_at.desc())
+    ).all()
     return _render(
         request,
         "item_form.html",
-        {"user": user, "mode": "edit", "draft": item, "lookup": None},
+        {
+            "user": user,
+            "mode": "edit",
+            "draft": item,
+            "lookup": None,
+            "related_batches": related_batches,
+            "movement_rows": movement_rows,
+        },
     )
 
 

@@ -131,6 +131,65 @@
     <a class="btn btn-outline-secondary" href="/">{{ t("common.cancel") }}</a>
   </div>
 </form>
+{% if mode == "edit" and related_batches %}
+<div class="card mt-4 mb-3">
+  <div class="card-header">{{ t("product.batches") }}</div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0" data-enhanced-table>
+      <thead>
+        <tr>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("table.barcode") }}</th>
+          <th>{{ t("table.location") }}</th>
+          <th>{{ t("table.bucket") }}</th>
+          <th>{{ t("table.expiry") }}</th>
+          <th>{{ t("table.quantity") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for batch in related_batches %}
+        <tr>
+          <td>{{ batch.batch_code or "-" }}</td>
+          <td>{{ batch.barcode or "-" }}</td>
+          <td>{{ batch.storage_location }}</td>
+          <td>{{ batch.storage_bucket or "-" }}</td>
+          <td>{{ batch.expiry_date }}</td>
+          <td>{{ batch.quantity }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">{{ t("product.movement_log") }}</div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0" data-enhanced-table>
+      <thead>
+        <tr>
+          <th>{{ t("log.time") }}</th>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("log.delta") }}</th>
+          <th>{{ t("log.note") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for movement, batch in movement_rows %}
+        <tr>
+          <td>{{ movement.created_at }}</td>
+          <td>{{ batch.batch_code or "-" }}</td>
+          <td>{{ movement.delta }}</td>
+          <td>{{ movement.note or "-" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">{{ t("product.no_log") }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% if mode != "edit" %}
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 <script src="{{ url_for('static', path='barcode-camera.js') }}"></script>

@@ -8,7 +8,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Inventory fields: item name/type, location, bucket (optional), batch code (optional), expiry date, temperature range, humidity range, renewal date, barcode.
 - Supports multiple batches of the same product (same product/barcode with different batch codes and expiry dates).
 - Supports stock quantity per batch, including increment/decrement operations with optional notes and movement logs.
-- Product detail page now includes a product summary section and a product-level edit flow that applies shared detail changes across all batches.
+- Product detail page now includes a product summary section and an edit shortcut that opens the existing item edit page with the same product's batches and movement log context.
 - Supports unidose planning fields (`unidose_per_pack`, `target_unidoses_location`) and automatic unidoses delta calculations per location.
 - Barcode lookup endpoint backed by provider-priority config (Portugal-first defaults).
 - User-friendly web UI for manual entry, barcode-assisted entry, camera barcode scanning with automatic search submit, compatibility fallback mode for unsupported browsers, datagrid listing/editing, and file import.

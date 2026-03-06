@@ -12,10 +12,7 @@
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span>{{ t("product.details_title") }}</span>
-    <a
-      class="btn btn-sm btn-outline-primary"
-      href="{{ url_for('product_edit_page', item_type=item_type, product_name=product_name) }}"
-    >{{ t("product.edit_details") }}</a>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('item_edit', item_id=edit_item_id) }}">{{ t("product.edit_details") }}</a>
   </div>
   <div class="card-body">
     <div class="row g-3">

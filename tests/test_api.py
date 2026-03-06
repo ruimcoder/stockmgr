@@ -231,7 +231,7 @@ def test_stock_views_and_product_detail_with_movement_log(client):
     detail = client.get("/products/by-name/food/Pasta")
     assert detail.status_code == 200
     assert "Product details" in detail.text
-    assert "/products/by-name/food/Pasta/edit" in detail.text
+    assert f"/items/{item_id}/edit" in detail.text
     assert "Consumed one" in detail.text
 
     shopping = client.get("/shopping-list")
@@ -240,7 +240,7 @@ def test_stock_views_and_product_detail_with_movement_log(client):
     assert "Pontevel: 6" in shopping.text
 
 
-def test_product_detail_edit_updates_all_batches(client):
+def test_item_edit_page_shows_related_batches_and_log(client):
     payload_a = {
         "barcode": "5604444444444",
         "batch_code": "LOT-1",
@@ -265,36 +265,22 @@ def test_product_detail_edit_updates_all_batches(client):
         "unidose_per_pack": 2,
         "target_unidoses_location": 12,
     }
-    assert client.post("/api/items", json=payload_a).status_code == 200
-    assert client.post("/api/items", json=payload_b).status_code == 200
+    first_created = client.post("/api/items", json=payload_a)
+    second_created = client.post("/api/items", json=payload_b)
+    assert first_created.status_code == 200
+    assert second_created.status_code == 200
+    first_id = first_created.json()["id"]
 
-    edit_page = client.get("/products/by-name/food/Rice/edit")
-    assert edit_page.status_code == 200
-    assert "Edit product details" in edit_page.text
-
-    edited = client.post(
-        "/products/by-name/food/Rice/edit",
-        data={
-            "name": "Rice Premium",
-            "item_type": "food",
-            "barcode": "5609999999999",
-            "temp_min_c": "4",
-            "temp_max_c": "20",
-            "humidity_min_pct": "30",
-            "humidity_max_pct": "70",
-            "renewal_date": "2029-12-01",
-        },
+    move = client.post(
+        f"/items/{first_id}/move",
+        data={"direction": "out", "quantity_step": "1", "note": "edit-context-note"},
         follow_redirects=False,
     )
-    assert edited.status_code == 303
-    assert "/products/by-name/food/Rice%20Premium?m=product-updated" in edited.headers["location"]
+    assert move.status_code == 303
 
-    detail = client.get("/products/by-name/food/Rice%20Premium")
-    assert detail.status_code == 200
-    assert "5609999999999" in detail.text
-    assert "Total stock quantity" in detail.text
-    assert "LOT-1" in detail.text
-    assert "LOT-2" in detail.text
-
-    old_detail = client.get("/products/by-name/food/Rice")
-    assert old_detail.status_code == 404
+    edit_page = client.get(f"/items/{first_id}/edit")
+    assert edit_page.status_code == 200
+    assert "LOT-1" in edit_page.text
+    assert "LOT-2" in edit_page.text
+    assert "Stock movement log" in edit_page.text
+    assert "edit-context-note" in edit_page.text
