@@ -24,6 +24,8 @@ HEADER_MAP = {
     "bucket": "storage_bucket",
     "expiry_date": "expiry_date",
     "expiry": "expiry_date",
+    "quantity": "quantity",
+    "qty": "quantity",
     "temp_min_c": "temp_min_c",
     "temp_max_c": "temp_max_c",
     "humidity_min_pct": "humidity_min_pct",
@@ -54,6 +56,8 @@ def _normalize_row(raw: dict[str, object]) -> dict[str, object]:
             normalized[canonical] = _as_iso_date(value)
         elif canonical == "storage_bucket":
             normalized[canonical] = str(value or "")
+        elif canonical == "quantity":
+            normalized[canonical] = int(value) if value not in (None, "") else 0
         elif value == "":
             normalized[canonical] = None
         else:

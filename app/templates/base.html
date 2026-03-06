@@ -14,6 +14,11 @@
         <div class="d-flex gap-2 align-items-center">
           <a class="btn btn-sm btn-outline-primary" href="/items/new">{{ t("nav.add_item") }}</a>
           <a class="btn btn-sm btn-outline-secondary" href="/items/import">{{ t("nav.import") }}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="/stock/views">{{ t("nav.stock_views") }}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="/renewals">{{ t("nav.renewals") }}</a>
+          {% if user and user.is_admin %}
+          <a class="btn btn-sm btn-outline-warning" href="/admin/users">{{ t("nav.admin_users") }}</a>
+          {% endif %}
           <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('nav.language') }}">
             <a class="btn btn-outline-dark {% if lang == 'en' %}active{% endif %}" href="/lang/en">{{ t("lang.en") }}</a>
             <a class="btn btn-outline-dark {% if lang == 'pt' %}active{% endif %}" href="/lang/pt">{{ t("lang.pt") }}</a>

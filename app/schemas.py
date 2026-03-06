@@ -12,6 +12,7 @@ class ItemBase(BaseModel):
     storage_location: str = Field(min_length=1)
     storage_bucket: str = ""
     expiry_date: date
+    quantity: int = Field(default=0, ge=0)
     temp_min_c: float | None = None
     temp_max_c: float | None = None
     humidity_min_pct: float | None = None

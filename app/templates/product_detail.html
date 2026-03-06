@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 m-0">{{ product_name }} <small class="text-muted">({{ item_type }})</small></h1>
+  <a class="btn btn-outline-secondary btn-sm" href="/">{{ t("common.back") }}</a>
+</div>
+
+{% if message %}
+<div class="alert alert-success py-2">{{ t("index.action_completed") }}: {{ message }}</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header">{{ t("product.batches") }}</div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("table.barcode") }}</th>
+          <th>{{ t("table.location") }}</th>
+          <th>{{ t("table.bucket") }}</th>
+          <th>{{ t("table.expiry") }}</th>
+          <th>{{ t("table.quantity") }}</th>
+          <th>{{ t("product.adjust") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for batch in batches %}
+        <tr>
+          <td>{{ batch.batch_code or "-" }}</td>
+          <td>{{ batch.barcode or "-" }}</td>
+          <td>{{ batch.storage_location }}</td>
+          <td>{{ batch.storage_bucket or "-" }}</td>
+          <td>{{ batch.expiry_date }}</td>
+          <td><strong>{{ batch.quantity }}</strong></td>
+          <td>
+            <form method="post" action="/items/{{ batch.id }}/move" class="d-flex gap-1 flex-wrap">
+              <input type="number" min="1" step="1" name="quantity_step" value="1" class="form-control form-control-sm qty-field" />
+              <input type="text" name="note" placeholder="{{ t('product.note_placeholder') }}" class="form-control form-control-sm note-field" />
+              <button class="btn btn-sm btn-outline-success" name="direction" value="in" type="submit">+ {{ t("product.add") }}</button>
+              <button class="btn btn-sm btn-outline-danger" name="direction" value="out" type="submit">- {{ t("product.remove") }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">{{ t("product.movement_log") }}</div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>{{ t("log.time") }}</th>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("log.delta") }}</th>
+          <th>{{ t("log.note") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for movement, batch in movement_rows %}
+        <tr>
+          <td>{{ movement.created_at }}</td>
+          <td>{{ batch.batch_code or "-" }}</td>
+          <td>{{ movement.delta }}</td>
+          <td>{{ movement.note or "-" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">{{ t("product.no_log") }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+

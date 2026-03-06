@@ -20,6 +20,7 @@
           <th>{{ t("table.batch") }}</th>
           <th>{{ t("table.location") }}</th>
           <th>{{ t("table.bucket") }}</th>
+          <th>{{ t("table.quantity") }}</th>
           <th>{{ t("table.expiry") }}</th>
           <th>{{ t("table.renewal") }}</th>
           <th></th>
@@ -34,9 +35,14 @@
           <td>{{ item.batch_code or "-" }}</td>
           <td>{{ item.storage_location }}</td>
           <td>{{ item.storage_bucket or "-" }}</td>
+          <td>{{ item.quantity }}</td>
           <td>{{ item.expiry_date or "-" }}</td>
           <td>{{ item.renewal_date or "-" }}</td>
           <td class="text-end">
+            <a
+              class="btn btn-sm btn-outline-secondary"
+              href="{{ url_for('product_detail', item_type=item.item_type, product_name=item.name) }}"
+            >{{ t("common.details") }}</a>
             <a class="btn btn-sm btn-outline-primary" href="/items/{{ item.id }}/edit">{{ t("common.edit") }}</a>
             <form method="post" action="/items/{{ item.id }}/delete" class="d-inline">
               <button class="btn btn-sm btn-outline-danger" type="submit">{{ t("common.delete") }}</button>

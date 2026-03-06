@@ -14,3 +14,11 @@ table th {
   background: #111827;
 }
 
+.qty-field {
+  width: 90px;
+}
+
+.note-field {
+  min-width: 180px;
+}
+

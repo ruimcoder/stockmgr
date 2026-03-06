@@ -9,6 +9,7 @@ def test_create_and_list_items(client):
         "item_type": "food",
         "storage_location": "Pantry",
         "expiry_date": "2030-01-01",
+        "quantity": 5,
         "renewal_date": "2029-12-01",
     }
     created = client.post("/api/items", json=payload_a)
@@ -23,6 +24,7 @@ def test_create_and_list_items(client):
         "item_type": "food",
         "storage_location": "Pantry",
         "expiry_date": "2030-03-01",
+        "quantity": 2,
     }
     created_b = client.post("/api/items", json=payload_b)
     assert created_b.status_code == 200
@@ -31,6 +33,7 @@ def test_create_and_list_items(client):
     assert listed.status_code == 200
     assert len(listed.json()) == 2
     assert listed.json()[0]["storage_location"] == "Pantry"
+    assert listed.json()[0]["quantity"] >= 0
 
 
 def test_required_expiry_date_enforced(client):
@@ -72,8 +75,8 @@ def test_barcode_lookup_endpoint(client, monkeypatch):
 
 def test_csv_import_route(client):
     csv_bytes = (
-        b"name,item_type,storage_location,batch_code,expiry_date,renewal_date\n"
-        b"Sugar,food,Pantry,LOT-55,2031-05-01,2031-04-01\n"
+        b"name,item_type,storage_location,batch_code,expiry_date,quantity,renewal_date\n"
+        b"Sugar,food,Pantry,LOT-55,2031-05-01,8,2031-04-01\n"
     )
     response = client.post(
         "/items/import",
@@ -81,3 +84,35 @@ def test_csv_import_route(client):
     )
     assert response.status_code == 200
     assert "Imported: <strong>1</strong>" in response.text
+
+
+def test_stock_views_and_product_detail_with_movement_log(client):
+    payload = {
+        "barcode": "5601111111111",
+        "batch_code": "LOT-XYZ",
+        "name": "Pasta",
+        "item_type": "food",
+        "storage_location": "Pontevel",
+        "storage_bucket": "Bucket 3",
+        "expiry_date": "2028-11-11",
+        "quantity": 10,
+    }
+    created = client.post("/api/items", json=payload)
+    assert created.status_code == 200
+    item_id = created.json()["id"]
+
+    views = client.get("/stock/views")
+    assert views.status_code == 200
+    assert "Per product (overall)" in views.text
+    assert "Pasta" in views.text
+
+    move = client.post(
+        f"/items/{item_id}/move",
+        data={"direction": "out", "quantity_step": "1", "note": "Consumed one"},
+        follow_redirects=True,
+    )
+    assert move.status_code == 200
+
+    detail = client.get("/products/by-name/food/Pasta")
+    assert detail.status_code == 200
+    assert "Consumed one" in detail.text

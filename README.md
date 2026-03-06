@@ -7,9 +7,13 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Mandatory fields: type, name, storage location, expiry date.
 - Inventory fields: item name/type, location, bucket (optional), batch code (optional), expiry date, temperature range, humidity range, renewal date, barcode.
 - Supports multiple batches of the same product (same product/barcode with different batch codes and expiry dates).
+- Supports stock quantity per batch, including increment/decrement operations with optional notes and movement logs.
 - Barcode lookup endpoint backed by provider-priority config (Portugal-first defaults).
 - User-friendly web UI for manual entry, barcode-assisted entry, camera barcode scanning with automatic search submit, datagrid listing/editing, and file import.
 - Multilanguage UI switcher (Portuguese and English).
+- Stock views include: per product overall, per product and storage location, and per product/location/expiry.
+- Renewal plan includes configurable time window (`RENEWAL_WINDOW_DAYS` default, overrideable in UI).
+- Users can register; account access requires admin approval. Admins can approve/reject users and toggle admin role.
 - Calendar sync service abstraction for Google or Microsoft provider modes.
 - Automated tests and GitHub Actions for CI + image deployment.
 
@@ -50,6 +54,8 @@ DATABASE_URL=sqlite:///./stockmgr.db
 SECRET_KEY=replace-this
 AUTH_MODE=dev
 CALENDAR_PROVIDER=none
+RENEWAL_WINDOW_DAYS=30
+ADMIN_EMAILS=admin@example.com
 
 # Optional OAuth
 GOOGLE_CLIENT_ID=

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,19 +12,15 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
+from sqlalchemy import func
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
 from app.db import get_session, init_db
 from app.i18n import SUPPORTED_LANGUAGES, translate
-from app.models import StockItem, User
-from app.schemas import (
-    BarcodeLookupRequest,
-    BarcodeLookupResult,
-    ItemCreate,
-    ItemRead,
-)
+from app.models import StockItem, StockMovement, User
+from app.schemas import BarcodeLookupRequest, BarcodeLookupResult, ItemCreate, ItemRead
 from app.services.barcode import BarcodeLookupService
 from app.services.calendar import CalendarSyncError, CalendarSyncService
 from app.services.imports import parse_import_file
@@ -41,7 +37,10 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="stockmgr MVP", lifespan=lifespan)
 app.add_middleware(
-    SessionMiddleware, secret_key=settings.secret_key, same_site="lax", https_only=False
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",
+    https_only=False,
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -79,6 +78,13 @@ barcode_service = BarcodeLookupService(settings)
 calendar_service = CalendarSyncService(settings)
 
 
+def _current_language(request: Request) -> str:
+    lang = request.session.get("lang", "en")
+    if lang not in SUPPORTED_LANGUAGES:
+        return "en"
+    return lang
+
+
 def _render(
     request: Request,
     template_name: str,
@@ -97,11 +103,31 @@ def _render(
     return templates.TemplateResponse(request, template_name, payload, status_code=status_code)
 
 
-def _current_language(request: Request) -> str:
-    lang = request.session.get("lang", "en")
-    if lang not in SUPPORTED_LANGUAGES:
-        return "en"
-    return lang
+def _admin_email_set() -> set[str]:
+    values = [entry.strip().lower() for entry in settings.admin_emails.split(",")]
+    return {entry for entry in values if entry}
+
+
+def _count_approved_admins(session: Session) -> int:
+    query = (
+        select(func.count())
+        .select_from(User)
+        .where(
+            User.approval_status == "approved",
+            User.is_admin.is_(True),
+        )
+    )
+    return int(session.exec(query).one() or 0)
+
+
+def _new_user_status(email: str, session: Session) -> tuple[str, bool]:
+    email_l = email.lower()
+    admin_emails = _admin_email_set()
+    if email_l in admin_emails:
+        return "approved", True
+    if _count_approved_admins(session) == 0:
+        return "approved", True
+    return "pending", False
 
 
 def _current_user(request: Request, session: Session) -> User | None:
@@ -113,19 +139,29 @@ def _current_user(request: Request, session: Session) -> User | None:
 
 def _require_user_or_redirect(request: Request, session: Session) -> User | RedirectResponse:
     user = _current_user(request, session)
-    if user:
-        return user
-    return RedirectResponse("/login", status_code=303)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if user.approval_status != "approved":
+        request.session.clear()
+        return RedirectResponse("/login?m=account-not-approved", status_code=303)
+    return user
 
 
 def _require_api_user(request: Request, session: Session = Depends(get_session)) -> User:
     user = _current_user(request, session)
-    if not user:
+    if not user or user.approval_status != "approved":
         raise HTTPException(status_code=401, detail="Authentication required.")
     return user
 
 
-def _upsert_user(
+def _require_admin_user(request: Request, session: Session = Depends(get_session)) -> User:
+    user = _require_api_user(request, session)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return user
+
+
+def _upsert_oauth_user(
     session: Session,
     *,
     provider: str,
@@ -137,6 +173,7 @@ def _upsert_user(
 ) -> User:
     query = select(User).where(User.oauth_provider == provider, User.oauth_subject == subject)
     existing = session.exec(query).first()
+    now = datetime.now(UTC)
     if existing:
         existing.email = email
         existing.display_name = display_name
@@ -149,13 +186,18 @@ def _upsert_user(
         session.refresh(existing)
         return existing
 
+    approval_status, is_admin = _new_user_status(email, session)
     user = User(
         email=email,
         display_name=display_name,
         oauth_provider=provider,
         oauth_subject=subject,
+        approval_status=approval_status,
+        is_admin=is_admin,
         access_token=access_token,
         refresh_token=refresh_token,
+        requested_at=now,
+        approved_at=now if approval_status == "approved" else None,
     )
     session.add(user)
     session.commit()
@@ -173,6 +215,7 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "storage_location",
         "storage_bucket",
         "expiry_date",
+        "quantity",
         "temp_min_c",
         "temp_max_c",
         "humidity_min_pct",
@@ -182,6 +225,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         value = form.get(key)
         if key == "storage_bucket":
             payload[key] = value if value not in ("", None) else ""
+        elif key == "quantity":
+            payload[key] = int(value) if value not in ("", None) else 0
         else:
             payload[key] = value if value not in ("", None) else None
     return payload
@@ -189,6 +234,10 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
 
 def _to_read_model(item: StockItem) -> ItemRead:
     return ItemRead.model_validate(item.model_dump())
+
+
+def _fetch_message(request: Request) -> str | None:
+    return request.query_params.get("m")
 
 
 @app.get("/health")
@@ -204,16 +253,63 @@ def set_language(lang_code: str, request: Request):
     return RedirectResponse(request.headers.get("referer") or "/", status_code=303)
 
 
+@app.get("/register")
+def register_page(request: Request, session: Session = Depends(get_session)):
+    user = _current_user(request, session)
+    if user and user.approval_status == "approved":
+        return RedirectResponse("/", status_code=303)
+    return _render(request, "register.html", {"message": _fetch_message(request)})
+
+
+@app.post("/register")
+def register_user(
+    request: Request,
+    email: str = Form(...),
+    display_name: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    email_l = email.strip().lower()
+    query = select(User).where(User.oauth_provider == "dev", User.oauth_subject == email_l)
+    existing = session.exec(query).first()
+    if existing:
+        return RedirectResponse("/login?m=register-already-exists", status_code=303)
+
+    now = datetime.now(UTC)
+    status, is_admin = _new_user_status(email_l, session)
+    user = User(
+        email=email_l,
+        display_name=display_name.strip() or email_l,
+        oauth_provider="dev",
+        oauth_subject=email_l,
+        approval_status=status,
+        is_admin=is_admin,
+        requested_at=now,
+        approved_at=now if status == "approved" else None,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    if user.approval_status == "approved":
+        request.session["user_id"] = user.id
+        return RedirectResponse("/?m=registered-approved", status_code=303)
+    return RedirectResponse("/login?m=registration-pending", status_code=303)
+
+
 @app.get("/login")
 def login_page(request: Request, session: Session = Depends(get_session)):
     user = _current_user(request, session)
-    if user:
+    if user and user.approval_status == "approved":
         return RedirectResponse("/", status_code=303)
     available_oauth = [name for name in ("google", "microsoft") if oauth.create_client(name)]
     return _render(
         request,
         "login.html",
-        {"available_oauth": available_oauth, "auth_mode": settings.auth_mode},
+        {
+            "available_oauth": available_oauth,
+            "auth_mode": settings.auth_mode,
+            "message": _fetch_message(request),
+        },
     )
 
 
@@ -221,18 +317,18 @@ def login_page(request: Request, session: Session = Depends(get_session)):
 def dev_login(
     request: Request,
     email: str = Form(...),
-    display_name: str = Form("Local User"),
     session: Session = Depends(get_session),
 ):
     if settings.auth_mode != "dev":
         raise HTTPException(status_code=403, detail="Development login is disabled.")
-    user = _upsert_user(
-        session,
-        provider="dev",
-        subject=email.lower(),
-        email=email.lower(),
-        display_name=display_name,
-    )
+
+    email_l = email.strip().lower()
+    query = select(User).where(User.oauth_provider == "dev", User.oauth_subject == email_l)
+    user = session.exec(query).first()
+    if not user:
+        return RedirectResponse("/register?m=login-register-first", status_code=303)
+    if user.approval_status != "approved":
+        return RedirectResponse("/login?m=login-pending-approval", status_code=303)
     request.session["user_id"] = user.id
     return RedirectResponse("/", status_code=303)
 
@@ -286,7 +382,7 @@ async def oauth_callback(
     subject = str(userinfo.get("sub") or userinfo.get("id") or email)
     display_name = userinfo.get("name") or email.split("@")[0]
 
-    user = _upsert_user(
+    user = _upsert_oauth_user(
         session,
         provider=provider,
         subject=subject,
@@ -295,6 +391,8 @@ async def oauth_callback(
         access_token=token.get("access_token"),
         refresh_token=token.get("refresh_token"),
     )
+    if user.approval_status != "approved":
+        return RedirectResponse("/login?m=login-pending-approval", status_code=303)
     request.session["user_id"] = user.id
     return RedirectResponse("/", status_code=303)
 
@@ -314,7 +412,149 @@ def index(request: Request, session: Session = Depends(get_session)):
     return _render(
         request,
         "index.html",
-        {"user": user, "items": items, "message": request.query_params.get("m")},
+        {"user": user, "items": items, "message": _fetch_message(request)},
+    )
+
+
+@app.get("/stock/views")
+def stock_views(request: Request, session: Session = Depends(get_session)):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    overall_query = (
+        select(
+            StockItem.name,
+            StockItem.item_type,
+            func.sum(StockItem.quantity).label("quantity"),
+        )
+        .where(StockItem.user_id == user.id)
+        .group_by(StockItem.name, StockItem.item_type)
+        .order_by(StockItem.name)
+    )
+    by_location_query = (
+        select(
+            StockItem.name,
+            StockItem.item_type,
+            StockItem.storage_location,
+            func.sum(StockItem.quantity).label("quantity"),
+        )
+        .where(StockItem.user_id == user.id)
+        .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
+        .order_by(StockItem.name, StockItem.storage_location)
+    )
+    by_location_expiry_query = (
+        select(
+            StockItem.name,
+            StockItem.item_type,
+            StockItem.storage_location,
+            StockItem.expiry_date,
+            func.sum(StockItem.quantity).label("quantity"),
+        )
+        .where(StockItem.user_id == user.id)
+        .group_by(
+            StockItem.name,
+            StockItem.item_type,
+            StockItem.storage_location,
+            StockItem.expiry_date,
+        )
+        .order_by(StockItem.name, StockItem.storage_location, StockItem.expiry_date)
+    )
+
+    return _render(
+        request,
+        "stock_views.html",
+        {
+            "user": user,
+            "overall_rows": session.exec(overall_query).all(),
+            "location_rows": session.exec(by_location_query).all(),
+            "validity_rows": session.exec(by_location_expiry_query).all(),
+        },
+    )
+
+
+@app.get("/renewals")
+def renewal_plan(
+    request: Request, session: Session = Depends(get_session), days: int | None = None
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    window_days = days if days and days > 0 else settings.renewal_window_days
+    start = date.today()
+    end = start + timedelta(days=window_days)
+    statement = (
+        select(StockItem)
+        .where(
+            StockItem.user_id == user.id,
+            StockItem.renewal_date.is_not(None),
+            StockItem.renewal_date >= start,
+            StockItem.renewal_date <= end,
+        )
+        .order_by(StockItem.renewal_date, StockItem.name)
+    )
+    rows = session.exec(statement).all()
+    return _render(
+        request,
+        "renewals.html",
+        {
+            "user": user,
+            "window_days": window_days,
+            "rows": rows,
+        },
+    )
+
+
+@app.get("/products/by-name/{item_type}/{product_name}")
+def product_detail(
+    item_type: str,
+    product_name: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    batch_query = (
+        select(StockItem)
+        .where(
+            StockItem.user_id == user.id,
+            StockItem.item_type == item_type,
+            StockItem.name == product_name,
+        )
+        .order_by(StockItem.expiry_date, StockItem.storage_location, StockItem.storage_bucket)
+    )
+    batches = session.exec(batch_query).all()
+    if not batches:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    movement_query = (
+        select(StockMovement, StockItem)
+        .join(StockItem, StockItem.id == StockMovement.stock_item_id)
+        .where(
+            StockItem.user_id == user.id,
+            StockItem.item_type == item_type,
+            StockItem.name == product_name,
+        )
+        .order_by(StockMovement.created_at.desc())
+    )
+    movement_rows = session.exec(movement_query).all()
+    return _render(
+        request,
+        "product_detail.html",
+        {
+            "user": user,
+            "item_type": item_type,
+            "product_name": product_name,
+            "batches": batches,
+            "movement_rows": movement_rows,
+            "message": _fetch_message(request),
+        },
     )
 
 
@@ -323,7 +563,11 @@ def item_new(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
-    return _render(request, "item_form.html", {"mode": "create", "draft": {}, "lookup": None})
+    return _render(
+        request,
+        "item_form.html",
+        {"user": maybe_user, "mode": "create", "draft": {"quantity": 0}, "lookup": None},
+    )
 
 
 @app.get("/items/{item_id}/edit")
@@ -335,7 +579,11 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
     item = session.get(StockItem, item_id)
     if not item or item.user_id != user.id:
         raise HTTPException(status_code=404, detail="Item not found.")
-    return _render(request, "item_form.html", {"mode": "edit", "draft": item, "lookup": None})
+    return _render(
+        request,
+        "item_form.html",
+        {"user": user, "mode": "edit", "draft": item, "lookup": None},
+    )
 
 
 @app.post("/items/lookup")
@@ -349,7 +597,7 @@ async def lookup_for_form(
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
     result = await barcode_service.lookup(barcode=barcode, item_type=item_type)
-    draft: dict[str, Any] = {"barcode": barcode, "item_type": item_type}
+    draft: dict[str, Any] = {"barcode": barcode, "item_type": item_type, "quantity": 0}
     if result.found and result.data:
         draft.update(
             {
@@ -362,7 +610,11 @@ async def lookup_for_form(
                 "storage_bucket": "",
             }
         )
-    return _render(request, "item_form.html", {"mode": "create", "draft": draft, "lookup": result})
+    return _render(
+        request,
+        "item_form.html",
+        {"user": maybe_user, "mode": "create", "draft": draft, "lookup": result},
+    )
 
 
 @app.post("/items")
@@ -382,6 +634,17 @@ async def item_create(request: Request, session: Session = Depends(get_session))
     session.commit()
     session.refresh(item)
 
+    if item.quantity > 0:
+        session.add(
+            StockMovement(
+                stock_item_id=item.id,
+                user_id=user.id,
+                delta=item.quantity,
+                note="Initial stock quantity",
+            )
+        )
+        session.commit()
+
     try:
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:
@@ -400,12 +663,14 @@ async def item_update(item_id: int, request: Request, session: Session = Depends
     if not item or item.user_id != user.id:
         raise HTTPException(status_code=404, detail="Item not found.")
 
+    previous_quantity = item.quantity
     form = await request.form()
     payload = _item_payload_from_form(dict(form))
     try:
         item_in = ItemCreate.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
     for key, value in item_in.model_dump().items():
         setattr(item, key, value)
     item.updated_at = datetime.now(UTC)
@@ -413,12 +678,66 @@ async def item_update(item_id: int, request: Request, session: Session = Depends
     session.commit()
     session.refresh(item)
 
+    quantity_delta = item.quantity - previous_quantity
+    if quantity_delta:
+        session.add(
+            StockMovement(
+                stock_item_id=item.id,
+                user_id=user.id,
+                delta=quantity_delta,
+                note="Quantity updated in edit form",
+            )
+        )
+        session.commit()
+
     try:
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return RedirectResponse("/?m=item-updated", status_code=303)
+
+
+@app.post("/items/{item_id}/move")
+def adjust_stock_quantity(
+    item_id: int,
+    request: Request,
+    direction: str = Form(...),
+    quantity_step: int = Form(1),
+    note: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+    item = session.get(StockItem, item_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Item not found.")
+
+    step = max(1, int(quantity_step))
+    if direction not in {"in", "out"}:
+        raise HTTPException(status_code=400, detail="Invalid stock movement direction.")
+    delta = step if direction == "in" else -step
+    new_quantity = item.quantity + delta
+    if new_quantity < 0:
+        raise HTTPException(status_code=400, detail="Cannot reduce below zero.")
+
+    item.quantity = new_quantity
+    item.updated_at = datetime.now(UTC)
+    session.add(item)
+    session.add(
+        StockMovement(
+            stock_item_id=item.id,
+            user_id=user.id,
+            delta=delta,
+            note=(note or "").strip() or None,
+        )
+    )
+    session.commit()
+
+    target = request.headers.get("referer") or "/"
+    return RedirectResponse(target, status_code=303)
 
 
 @app.post("/items/{item_id}/delete")
@@ -440,7 +759,7 @@ def import_page(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
-    return _render(request, "import.html", {"result": None})
+    return _render(request, "import.html", {"user": maybe_user, "result": None})
 
 
 @app.post("/items/import")
@@ -459,7 +778,76 @@ async def import_items(
         item = StockItem(**item_in.model_dump(), user_id=user.id)
         session.add(item)
     session.commit()
-    return _render(request, "import.html", {"result": result})
+    return _render(request, "import.html", {"user": user, "result": result})
+
+
+@app.get("/admin/users")
+def admin_users(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    users = session.exec(select(User).order_by(User.requested_at.desc())).all()
+    return _render(
+        request,
+        "admin_users.html",
+        {"user": admin, "users": users, "message": _fetch_message(request)},
+    )
+
+
+@app.post("/admin/users/{user_id}/approve")
+def admin_approve_user(
+    user_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    _ = request
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.approval_status = "approved"
+    user.approved_at = datetime.now(UTC)
+    session.add(user)
+    session.commit()
+    return RedirectResponse("/admin/users?m=user-approved", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/reject")
+def admin_reject_user(
+    user_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    _ = request
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.approval_status = "rejected"
+    user.approved_at = None
+    session.add(user)
+    session.commit()
+    return RedirectResponse("/admin/users?m=user-rejected", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/toggle-admin")
+def admin_toggle_admin(
+    user_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    _ = request
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if user.id == admin.id and user.is_admin and _count_approved_admins(session) <= 1:
+        raise HTTPException(status_code=400, detail="Cannot remove the last admin.")
+    user.is_admin = not user.is_admin
+    session.add(user)
+    session.commit()
+    return RedirectResponse("/admin/users?m=user-role-updated", status_code=303)
 
 
 @app.get("/api/items", response_model=list[ItemRead])
@@ -483,6 +871,16 @@ async def api_create_item(
     session.add(item)
     session.commit()
     session.refresh(item)
+    if item.quantity > 0:
+        session.add(
+            StockMovement(
+                stock_item_id=item.id,
+                user_id=user.id,
+                delta=item.quantity,
+                note="Initial stock quantity",
+            )
+        )
+        session.commit()
     try:
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     microsoft_client_secret: str | None = None
 
     calendar_provider: Literal["none", "google", "microsoft"] = "none"
+    renewal_window_days: int = 30
+    admin_emails: str = ""
 
     provider_config_path: str = "config/barcode-providers.default.json"
     provider_schema_path: str = "config/barcode-providers.schema.json"

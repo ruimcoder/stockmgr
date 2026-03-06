@@ -3,14 +3,15 @@ from app.services.imports import parse_import_file
 
 def test_parse_csv_import():
     csv_bytes = (
-        b"name,item_type,storage_location,batch_code,expiry_date,renewal_date\n"
-        b"Rice,food,Shelf A,LOT-R1,2030-01-01,2029-12-01\n"
+        b"name,item_type,storage_location,batch_code,expiry_date,quantity,renewal_date\n"
+        b"Rice,food,Shelf A,LOT-R1,2030-01-01,12,2029-12-01\n"
     )
     items, result = parse_import_file(csv_bytes, "items.csv")
     assert result.imported == 1
     assert result.failed == 0
     assert items[0].name == "Rice"
     assert items[0].batch_code == "LOT-R1"
+    assert items[0].quantity == 12
 
 
 def test_parse_excel_import():
@@ -21,9 +22,17 @@ def test_parse_excel_import():
     workbook = Workbook()
     sheet = workbook.active
     sheet.append(
-        ["name", "item_type", "storage_location", "batch_code", "expiry_date", "renewal_date"]
+        [
+            "name",
+            "item_type",
+            "storage_location",
+            "batch_code",
+            "expiry_date",
+            "quantity",
+            "renewal_date",
+        ]
     )
-    sheet.append(["Flour", "food", "Pantry", "LOT-F1", "2030-06-01", "2030-05-01"])
+    sheet.append(["Flour", "food", "Pantry", "LOT-F1", "2030-06-01", 3, "2030-05-01"])
     stream = BytesIO()
     workbook.save(stream)
     items, result = parse_import_file(stream.getvalue(), "items.xlsx")
@@ -31,6 +40,7 @@ def test_parse_excel_import():
     assert result.failed == 0
     assert items[0].name == "Flour"
     assert items[0].batch_code == "LOT-F1"
+    assert items[0].quantity == 3
 
 
 def test_parse_import_requires_expiry_date():

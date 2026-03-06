@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">{{ t("renewal.title") }}</h1>
+
+<form class="row g-2 mb-3" method="get" action="/renewals">
+  <div class="col-md-4">
+    <label class="form-label">{{ t("renewal.window_days") }}</label>
+    <input class="form-control" type="number" min="1" name="days" value="{{ window_days }}" />
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button class="btn btn-primary w-100" type="submit">{{ t("renewal.apply") }}</button>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>{{ t("table.name") }}</th>
+          <th>{{ t("table.type") }}</th>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("table.location") }}</th>
+          <th>{{ t("table.bucket") }}</th>
+          <th>{{ t("table.quantity") }}</th>
+          <th>{{ t("table.renewal") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in rows %}
+        <tr>
+          <td>{{ item.name }}</td>
+          <td>{{ item.item_type }}</td>
+          <td>{{ item.batch_code or "-" }}</td>
+          <td>{{ item.storage_location }}</td>
+          <td>{{ item.storage_bucket or "-" }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>{{ item.renewal_date }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-3">{{ t("renewal.no_items") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
