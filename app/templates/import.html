@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">{{ t("import.title") }}</h1>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" action="/items/import" enctype="multipart/form-data">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label">{{ t("import.file_label") }}</label>
+          <input class="form-control" type="file" name="file" accept=".csv,.xlsx" required />
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-primary w-100" type="submit">{{ t("import.button") }}</button>
+        </div>
+      </div>
+    </form>
+    <small class="text-muted d-block mt-2">{{ t("import.batch_hint") }}</small>
+  </div>
+</div>
+
+{% if result %}
+<div class="alert alert-info">
+  {{ t("import.result_imported") }}: <strong>{{ result.imported }}</strong>,
+  {{ t("import.result_failed") }}: <strong>{{ result.failed }}</strong>
+</div>
+{% if result.errors %}
+<div class="card">
+  <div class="card-header">{{ t("import.errors_title") }}</div>
+  <ul class="list-group list-group-flush">
+    {% for err in result.errors %}
+      <li class="list-group-item">{{ err }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+

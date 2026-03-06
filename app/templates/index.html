@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 m-0">{{ t("index.inventory") }}</h1>
+  <span class="text-muted">{{ t("index.signed_in_as") }} {{ user.display_name }}</span>
+</div>
+
+{% if message %}
+<div class="alert alert-success py-2">{{ t("index.action_completed") }}: {{ message }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped table-hover mb-0">
+      <thead>
+        <tr>
+          <th>{{ t("table.name") }}</th>
+          <th>{{ t("table.type") }}</th>
+          <th>{{ t("table.barcode") }}</th>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("table.location") }}</th>
+          <th>{{ t("table.bucket") }}</th>
+          <th>{{ t("table.expiry") }}</th>
+          <th>{{ t("table.renewal") }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for item in items %}
+        <tr>
+          <td>{{ item.name }}</td>
+          <td>{{ item.item_type }}</td>
+          <td>{{ item.barcode or "-" }}</td>
+          <td>{{ item.batch_code or "-" }}</td>
+          <td>{{ item.storage_location }}</td>
+          <td>{{ item.storage_bucket or "-" }}</td>
+          <td>{{ item.expiry_date or "-" }}</td>
+          <td>{{ item.renewal_date or "-" }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="/items/{{ item.id }}/edit">{{ t("common.edit") }}</a>
+            <form method="post" action="/items/{{ item.id }}/delete" class="d-inline">
+              <button class="btn btn-sm btn-outline-danger" type="submit">{{ t("common.delete") }}</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-4">{{ t("index.no_items") }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+

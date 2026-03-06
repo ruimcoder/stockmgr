@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "lookup": {
+    "countryPriority": [
+      "PT",
+      "*"
+    ],
+    "chains": {
+      "food": [
+        "open_food_facts",
+        "usda_fooddata_central",
+        "upcitemdb",
+        "go_upc"
+      ],
+      "nonFood": [
+        "open_products_facts",
+        "upcitemdb",
+        "go_upc",
+        "gs1_us"
+      ],
+      "medical": [
+        "openfda_ndc",
+        "upcitemdb",
+        "go_upc"
+      ],
+      "unknown": [
+        "open_products_facts",
+        "open_food_facts",
+        "upcitemdb",
+        "go_upc"
+      ]
+    },
+    "sufficiency": {
+      "requiredFields": [
+        "name",
+        "brand"
+      ],
+      "minimumFieldMatch": 2,
+      "stopOnFirstSufficientMatch": true
+    }
+  },
+  "providers": {
+    "open_food_facts": {
+      "displayName": "Open Food Facts",
+      "kind": "open",
+      "enabled": true,
+      "defaultCountryPriority": [
+        "PT",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://world.openfoodfacts.org/api/v2",
+        "timeoutMs": 4000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": false
+      },
+      "notes": "Primary provider for food items with Portugal-first behavior."
+    },
+    "open_products_facts": {
+      "displayName": "Open Products Facts",
+      "kind": "open",
+      "enabled": true,
+      "defaultCountryPriority": [
+        "PT",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://world.openproductsfacts.org/api/v2",
+        "timeoutMs": 4000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": false
+      },
+      "notes": "Primary provider for non-food household items with Portugal-first behavior."
+    },
+    "usda_fooddata_central": {
+      "displayName": "USDA FoodData Central",
+      "kind": "public",
+      "enabled": true,
+      "defaultCountryPriority": [
+        "US",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://api.nal.usda.gov/fdc/v1",
+        "timeoutMs": 5000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "credentials": {
+        "apiKeyEnvVar": "USDA_API_KEY"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": true
+      },
+      "notes": "Food metadata enrichment fallback."
+    },
+    "openfda_ndc": {
+      "displayName": "openFDA Drug NDC",
+      "kind": "public",
+      "enabled": true,
+      "defaultCountryPriority": [
+        "US",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://api.fda.gov/drug/ndc.json",
+        "timeoutMs": 5000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "credentials": {
+        "apiKeyEnvVar": "OPENFDA_API_KEY"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": false
+      },
+      "notes": "Medication category provider and NDC lookup source."
+    },
+    "upcitemdb": {
+      "displayName": "UPCitemdb",
+      "kind": "commercial",
+      "enabled": true,
+      "defaultCountryPriority": [
+        "PT",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://api.upcitemdb.com/prod/v1",
+        "timeoutMs": 5000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "credentials": {
+        "apiKeyEnvVar": "UPCITEMDB_API_KEY"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": false
+      },
+      "notes": "Commercial fallback when open providers do not return sufficient data."
+    },
+    "go_upc": {
+      "displayName": "Go-UPC",
+      "kind": "commercial",
+      "enabled": true,
+      "defaultCountryPriority": [
+        "PT",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://go-upc.com/api/v1",
+        "timeoutMs": 5000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "credentials": {
+        "apiKeyEnvVar": "GO_UPC_API_KEY"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": true
+      },
+      "notes": "Secondary commercial fallback and bulk lookup option."
+    },
+    "gs1_us": {
+      "displayName": "GS1 US APIs",
+      "kind": "enterprise",
+      "enabled": false,
+      "defaultCountryPriority": [
+        "US",
+        "*"
+      ],
+      "legalReviewRequired": false,
+      "request": {
+        "baseUrl": "https://api.gs1us.org",
+        "timeoutMs": 6000,
+        "retries": 1,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "credentials": {
+        "apiKeyEnvVar": "GS1_US_API_KEY"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": true,
+        "supportsSearch": true,
+        "supportsBulk": true
+      },
+      "notes": "Optional enterprise provider disabled by default."
+    },
+    "continente_pt": {
+      "displayName": "Continente Portugal Connector",
+      "kind": "retailer",
+      "enabled": false,
+      "defaultCountryPriority": [
+        "PT"
+      ],
+      "legalReviewRequired": true,
+      "request": {
+        "baseUrl": "https://www.continente.pt",
+        "timeoutMs": 5000,
+        "retries": 0,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": false,
+        "supportsSearch": true,
+        "supportsBulk": false
+      },
+      "notes": "Optional connector. Enable only after explicit legal/compliance review."
+    },
+    "auchan_pt": {
+      "displayName": "Auchan Portugal Connector",
+      "kind": "retailer",
+      "enabled": false,
+      "defaultCountryPriority": [
+        "PT"
+      ],
+      "legalReviewRequired": true,
+      "request": {
+        "baseUrl": "https://www.auchan.pt",
+        "timeoutMs": 5000,
+        "retries": 0,
+        "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
+      },
+      "capabilities": {
+        "supportsBarcodeLookup": false,
+        "supportsSearch": true,
+        "supportsBulk": false
+      },
+      "notes": "Optional connector. Enable only after explicit legal/compliance review."
+    }
+  }
+}
+

@@ -1,0 +1,1 @@
+"""Stockmgr MVP application package."""
