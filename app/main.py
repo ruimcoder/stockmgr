@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
@@ -250,6 +250,30 @@ def _fetch_message(request: Request) -> str | None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def manifest() -> FileResponse:
+    return FileResponse(
+        BASE_DIR / "static" / "manifest.webmanifest",
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/service-worker.js", include_in_schema=False)
+def service_worker() -> FileResponse:
+    return FileResponse(
+        BASE_DIR / "static" / "service-worker.js",
+        media_type="application/javascript",
+    )
+
+
+@app.get("/offline.html", include_in_schema=False)
+def offline_page() -> FileResponse:
+    return FileResponse(
+        BASE_DIR / "static" / "offline.html",
+        media_type="text/html",
+    )
 
 
 @app.get("/lang/{lang_code}")

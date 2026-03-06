@@ -97,6 +97,25 @@ def test_item_form_camera_compatibility_elements(client):
     assert "data-permission-denied" in response.text
 
 
+def test_pwa_routes_and_bootstrap_assets(client):
+    home = client.get("/")
+    assert home.status_code == 200
+    assert 'rel="manifest"' in home.text
+    assert "pwa-register.js" in home.text
+
+    manifest = client.get("/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert '"name": "stockmgr"' in manifest.text
+
+    service_worker = client.get("/service-worker.js")
+    assert service_worker.status_code == 200
+    assert "CACHE_NAME" in service_worker.text
+
+    offline_page = client.get("/offline.html")
+    assert offline_page.status_code == 200
+    assert "Offline mode" in offline_page.text
+
+
 def test_csv_import_route(client):
     csv_bytes = (
         b"name,item_type,storage_location,batch_code,expiry_date,quantity,renewal_date\n"
