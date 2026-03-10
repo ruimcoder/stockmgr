@@ -53,6 +53,14 @@ class ItemRead(ItemBase):
     id: int
 
 
+class ExcelStockUpsertRow(ItemBase):
+    id: int | None = None
+
+
+class ExcelStockUpsertRequest(BaseModel):
+    rows: list[ExcelStockUpsertRow] = Field(default_factory=list)
+
+
 class BarcodeLookupRequest(BaseModel):
     barcode: str = Field(min_length=8, max_length=20)
     item_type: str = "unknown"

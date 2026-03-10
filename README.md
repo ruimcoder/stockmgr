@@ -21,6 +21,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Stock list supports filtering by bucket assignment (assigned/unassigned) and storage location.
 - Shopping list computes quantity-to-buy totals and per-location distribution.
 - Homepage quick search: find by name or barcode, opening product detail when in stock or prefilled new-item form when not in stock.
+- Excel integration API for read/write stock editing (`/api/excel/stocks`, `/api/excel/stocks/{id}`, `/api/excel/stocks/upsert`) with API-key authentication.
 - All list tables support paging, column filtering, and column ordering.
 - Renewal plan includes configurable time window (`RENEWAL_WINDOW_DAYS` default, overrideable in UI).
 - Users can register; account access requires admin approval. Admins can approve/reject users and toggle admin role.
@@ -86,7 +87,19 @@ OPENFDA_API_KEY=
 UPCITEMDB_API_KEY=
 GO_UPC_API_KEY=
 GS1_US_API_KEY=
+
+# Optional Excel API access
+EXCEL_API_KEY=
+EXCEL_API_USER_EMAIL=
 ```
+
+## Excel datasource API (read + write)
+- Authentication: set `X-Excel-Api-Key` header (or `X-API-Key`) to `EXCEL_API_KEY`.
+- User scope: by default uses `EXCEL_API_USER_EMAIL`; can override per request with `X-Excel-User-Email`.
+- Endpoints:
+  - `GET /api/excel/stocks` → list stock rows (read datasource).
+  - `PUT /api/excel/stocks/{id}` → update a row.
+  - `POST /api/excel/stocks/upsert` → batch create/update rows from worksheet data.
 
 ## Build and deploy
 - **CI** (`ci.yml`): lint + tests + Docker build on push/PR.

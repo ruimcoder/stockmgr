@@ -22,7 +22,14 @@ from app.config import get_settings
 from app.db import get_session, init_db
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import StockItem, StockMovement, User
-from app.schemas import BarcodeLookupRequest, BarcodeLookupResult, ItemCreate, ItemRead
+from app.schemas import (
+    BarcodeLookupRequest,
+    BarcodeLookupResult,
+    ExcelStockUpsertRequest,
+    ExcelStockUpsertRow,
+    ItemCreate,
+    ItemRead,
+)
 from app.services.barcode import BarcodeLookupService
 from app.services.calendar import CalendarSyncError, CalendarSyncService
 from app.services.imports import parse_import_file
@@ -163,6 +170,38 @@ def _require_admin_user(request: Request, session: Session = Depends(get_session
     return user
 
 
+def _require_excel_api_user(request: Request, session: Session = Depends(get_session)) -> User:
+    configured_key = settings.excel_api_key.strip()
+    if not configured_key:
+        raise HTTPException(status_code=503, detail="Excel API access is not configured.")
+
+    provided_key = (
+        request.headers.get("x-excel-api-key")
+        or request.headers.get("x-api-key")
+        or request.query_params.get("api_key")
+    )
+    if (provided_key or "").strip() != configured_key:
+        raise HTTPException(status_code=401, detail="Invalid Excel API key.")
+
+    target_email = (
+        request.headers.get("x-excel-user-email")
+        or request.headers.get("x-user-email")
+        or request.query_params.get("user_email")
+        or settings.excel_api_user_email
+    )
+    email = (target_email or "").strip().lower()
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Excel API user email is required via header, query, or configuration.",
+        )
+
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user or user.approval_status != "approved":
+        raise HTTPException(status_code=404, detail="Excel API user not found or not approved.")
+    return user
+
+
 def _upsert_oauth_user(
     session: Session,
     *,
@@ -242,6 +281,29 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
 
 def _to_read_model(item: StockItem) -> ItemRead:
     return ItemRead.model_validate(item.model_dump())
+
+
+def _excel_match_existing_item(
+    session: Session, *, user_id: int, row: ExcelStockUpsertRow
+) -> StockItem | None:
+    return session.exec(
+        select(StockItem).where(
+            StockItem.user_id == user_id,
+            StockItem.name == row.name,
+            StockItem.item_type == row.item_type,
+            StockItem.storage_location == row.storage_location,
+            StockItem.storage_bucket == row.storage_bucket,
+            StockItem.batch_code == row.batch_code,
+            StockItem.expiry_date == row.expiry_date,
+            StockItem.barcode == row.barcode,
+        )
+    ).first()
+
+
+def _apply_item_create_to_stock(item: StockItem, item_in: ItemCreate) -> None:
+    for key, value in item_in.model_dump().items():
+        setattr(item, key, value)
+    item.updated_at = datetime.now(UTC)
 
 
 def _fetch_message(request: Request) -> str | None:
@@ -1145,6 +1207,118 @@ async def api_create_item(
     except CalendarSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return _to_read_model(item)
+
+
+@app.get("/api/excel/stocks", response_model=list[ItemRead])
+def api_excel_list_stocks(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(_require_excel_api_user),
+):
+    _ = request
+    items = session.exec(
+        select(StockItem)
+        .where(StockItem.user_id == user.id)
+        .order_by(StockItem.name, StockItem.storage_location, StockItem.expiry_date)
+    ).all()
+    return [_to_read_model(item) for item in items]
+
+
+@app.put("/api/excel/stocks/{item_id}", response_model=ItemRead)
+async def api_excel_update_stock(
+    item_id: int,
+    item_in: ItemCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(_require_excel_api_user),
+):
+    item = session.get(StockItem, item_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Stock item not found.")
+
+    previous_quantity = item.quantity
+    _apply_item_create_to_stock(item, item_in)
+    session.add(item)
+    quantity_delta = item.quantity - previous_quantity
+    if quantity_delta:
+        session.add(
+            StockMovement(
+                stock_item_id=item.id,
+                user_id=user.id,
+                delta=quantity_delta,
+                note="Quantity updated via Excel API",
+            )
+        )
+    session.commit()
+    session.refresh(item)
+    try:
+        await calendar_service.schedule_renewal(user=user, item=item)
+    except CalendarSyncError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return _to_read_model(item)
+
+
+@app.post("/api/excel/stocks/upsert")
+async def api_excel_upsert_stocks(
+    payload: ExcelStockUpsertRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(_require_excel_api_user),
+):
+    created = 0
+    updated = 0
+    rows: list[ItemRead] = []
+
+    for row in payload.rows:
+        item_in = ItemCreate.model_validate(row.model_dump(exclude={"id"}))
+        item = None
+        if row.id is not None:
+            item = session.get(StockItem, row.id)
+            if not item or item.user_id != user.id:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Stock item not found for id={row.id}.",
+                )
+        else:
+            item = _excel_match_existing_item(session, user_id=user.id, row=row)
+
+        if item:
+            previous_quantity = item.quantity
+            _apply_item_create_to_stock(item, item_in)
+            session.add(item)
+            quantity_delta = item.quantity - previous_quantity
+            if quantity_delta:
+                session.add(
+                    StockMovement(
+                        stock_item_id=item.id,
+                        user_id=user.id,
+                        delta=quantity_delta,
+                        note="Quantity updated via Excel API upsert",
+                    )
+                )
+            updated += 1
+        else:
+            item = StockItem(**item_in.model_dump(), user_id=user.id)
+            session.add(item)
+            session.flush()
+            if item.quantity > 0:
+                session.add(
+                    StockMovement(
+                        stock_item_id=item.id,
+                        user_id=user.id,
+                        delta=item.quantity,
+                        note="Initial stock quantity (Excel API)",
+                    )
+                )
+            created += 1
+
+        session.commit()
+        session.refresh(item)
+        try:
+            await calendar_service.schedule_renewal(user=user, item=item)
+        except CalendarSyncError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        rows.append(_to_read_model(item))
+
+    return {"created": created, "updated": updated, "rows": rows}
 
 
 @app.post("/api/barcode-lookup", response_model=BarcodeLookupResult)

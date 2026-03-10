@@ -11,6 +11,8 @@ os.environ["AUTH_MODE"] = "dev"
 os.environ["CALENDAR_PROVIDER"] = "none"
 os.environ["SECRET_KEY"] = "test-secret"
 os.environ["ADMIN_EMAILS"] = "admin@example.com"
+os.environ["EXCEL_API_KEY"] = "excel-test-key"
+os.environ["EXCEL_API_USER_EMAIL"] = "tester@example.com"
 
 from app.db import engine  # noqa: E402
 from app.main import app  # noqa: E402

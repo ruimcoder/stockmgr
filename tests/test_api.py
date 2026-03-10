@@ -331,3 +331,94 @@ def test_new_item_page_prefills_product_and_location_from_query(client):
     )
     assert prefilled_for_batch.status_code == 200
     assert 'name="storage_location" value="Kitchen"' in prefilled_for_batch.text
+
+
+def test_excel_api_requires_valid_key_and_supports_read(client):
+    unauthorized = client.get("/api/excel/stocks")
+    assert unauthorized.status_code == 401
+
+    authorized = client.get(
+        "/api/excel/stocks",
+        headers={"x-excel-api-key": "excel-test-key"},
+    )
+    assert authorized.status_code == 200
+    assert isinstance(authorized.json(), list)
+
+
+def test_excel_api_update_and_upsert(client):
+    created = client.post(
+        "/api/items",
+        json={
+            "barcode": "5608888888888",
+            "batch_code": "XLS-1",
+            "name": "Chickpeas",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "storage_bucket": "A1",
+            "expiry_date": "2032-01-01",
+            "quantity": 4,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 10,
+        },
+    )
+    assert created.status_code == 200
+    item_id = created.json()["id"]
+
+    updated = client.put(
+        f"/api/excel/stocks/{item_id}",
+        headers={"x-excel-api-key": "excel-test-key"},
+        json={
+            "barcode": "5608888888888",
+            "batch_code": "XLS-1",
+            "name": "Chickpeas",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "storage_bucket": "A1",
+            "expiry_date": "2032-01-01",
+            "quantity": 9,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 10,
+            "renewal_date": "2031-12-01",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["quantity"] == 9
+
+    upsert = client.post(
+        "/api/excel/stocks/upsert",
+        headers={"x-excel-api-key": "excel-test-key"},
+        json={
+            "rows": [
+                {
+                    "id": item_id,
+                    "barcode": "5608888888888",
+                    "batch_code": "XLS-1",
+                    "name": "Chickpeas",
+                    "item_type": "food",
+                    "storage_location": "Pantry",
+                    "storage_bucket": "A1",
+                    "expiry_date": "2032-01-01",
+                    "quantity": 11,
+                    "unidose_per_pack": 1,
+                    "target_unidoses_location": 10,
+                },
+                {
+                    "barcode": "5609999990000",
+                    "batch_code": "XLS-2",
+                    "name": "Chickpeas",
+                    "item_type": "food",
+                    "storage_location": "Backup",
+                    "storage_bucket": "B2",
+                    "expiry_date": "2032-04-01",
+                    "quantity": 3,
+                    "unidose_per_pack": 1,
+                    "target_unidoses_location": 8,
+                },
+            ]
+        },
+    )
+    assert upsert.status_code == 200
+    body = upsert.json()
+    assert body["updated"] == 1
+    assert body["created"] == 1
+    assert len(body["rows"]) == 2
