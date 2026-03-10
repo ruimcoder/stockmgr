@@ -14,6 +14,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Barcode lookup endpoint backed by provider-priority config (Portugal-first defaults).
 - User-friendly web UI for manual entry, barcode-assisted entry, camera barcode scanning with automatic search submit, compatibility fallback mode for unsupported browsers, datagrid listing/editing, and file import.
 - Mobile-first responsive UI with installable PWA support (Android and iOS home-screen mode).
+- Refreshed multi-size app icon set (favicon, Apple touch icon, Android/PWA icons, maskable icon) for consistent recognition across devices.
 - In-app device diagnostics page (`/device-check`) to validate camera/PWA/browser capabilities on each device.
 - Multilanguage UI switcher (Portuguese and English).
 - Stock views include: per product overall, per product and storage location, and per product/location/expiry.

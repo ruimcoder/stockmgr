@@ -1,4 +1,4 @@
-const CACHE_NAME = "stockmgr-v2";
+const CACHE_NAME = "stockmgr-v3";
 const APP_SHELL = [
   "/",
   "/items/new",
@@ -12,8 +12,14 @@ const APP_SHELL = [
   "/static/table-enhance.js",
   "/static/device-check.js",
   "/static/pwa-register.js",
+  "/static/icons/favicon.ico",
+  "/static/icons/icon-16.png",
+  "/static/icons/icon-32.png",
+  "/static/icons/icon-180.png",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
+  "/static/icons/icon-maskable-512.png",
+  "/static/icons/icon.svg",
 ];
 
 self.addEventListener("install", (event) => {

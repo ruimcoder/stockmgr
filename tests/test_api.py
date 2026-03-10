@@ -102,18 +102,29 @@ def test_pwa_routes_and_bootstrap_assets(client):
     assert home.status_code == 200
     assert 'rel="manifest"' in home.text
     assert "pwa-register.js" in home.text
+    assert "icons/favicon.ico" in home.text
+    assert "icon-180.png" in home.text
 
     manifest = client.get("/manifest.webmanifest")
     assert manifest.status_code == 200
     assert '"name": "stockmgr"' in manifest.text
+    assert "icon-maskable-512.png" in manifest.text
 
     service_worker = client.get("/service-worker.js")
     assert service_worker.status_code == 200
-    assert "CACHE_NAME" in service_worker.text
+    assert "stockmgr-v3" in service_worker.text
 
     offline_page = client.get("/offline.html")
     assert offline_page.status_code == 200
     assert "Offline mode" in offline_page.text
+
+    assert client.get("/static/icons/favicon.ico").status_code == 200
+    assert client.get("/static/icons/icon-16.png").status_code == 200
+    assert client.get("/static/icons/icon-32.png").status_code == 200
+    assert client.get("/static/icons/icon-180.png").status_code == 200
+    assert client.get("/static/icons/icon-192.png").status_code == 200
+    assert client.get("/static/icons/icon-512.png").status_code == 200
+    assert client.get("/static/icons/icon-maskable-512.png").status_code == 200
 
 
 def test_device_check_page(client):
