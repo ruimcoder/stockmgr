@@ -103,9 +103,32 @@ EXCEL_API_USER_EMAIL=
 
 ## Build and deploy
 - **CI** (`ci.yml`): lint + tests + Docker build on push/PR.
-- **Deploy** (`deploy.yml`): builds and pushes container image to `ghcr.io/<owner>/<repo>` on `main` or manual dispatch.
+- **Deploy to Azure** (`deploy.yml`): validates Azure infra, builds/pushes image to GHCR, deploys container to Azure Web App, then runs smoke tests.
 - **Device smoke** (`device-smoke.yml`): Playwright smoke tests across Firefox desktop, Android Chrome emulation, and iPhone Safari emulation.
-- Optional: set `DEPLOY_WEBHOOK_URL` secret to trigger your hosting deployment after image publish.
+
+## Azure deployment pipeline setup
+1. Provision Azure Linux Web App infrastructure (resource group, App Service plan, Web App).
+2. Configure GitHub repository **Variables**:
+   - `AZURE_RESOURCE_GROUP`
+   - `AZURE_APPSERVICE_PLAN`
+   - `AZURE_WEBAPP_NAME`
+   - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP`, `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`
+3. Configure GitHub repository **Secrets**:
+   - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (OIDC service principal)
+   - `GHCR_USERNAME`, `GHCR_TOKEN` (token must allow package read for Azure pull)
+   - Recommended: `SECRET_KEY`, optional `EXCEL_API_KEY`
+4. The workflow runs infra validation first using `scripts/azure/validate_infra.sh`, deploys the container, and then validates runtime with `scripts/azure/smoke_test.sh`.
+
+### Local script dry-run (optional)
+```powershell
+az login
+$env:AZURE_RESOURCE_GROUP="rg-stockmgr"
+$env:AZURE_APPSERVICE_PLAN="asp-stockmgr"
+$env:AZURE_WEBAPP_NAME="stockmgr-prod"
+bash scripts/azure/validate_infra.sh
+$env:AZURE_WEBAPP_URL="https://stockmgr-prod.azurewebsites.net"
+bash scripts/azure/smoke_test.sh
+```
 
 ## Cross-device validation (local)
 ```powershell
