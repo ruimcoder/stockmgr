@@ -47,8 +47,17 @@ plan_reserved="$(
     --query "reserved" \
     --output tsv
 )"
+plan_kind="$(
+  az appservice plan show \
+    --name "$AZURE_APPSERVICE_PLAN" \
+    --resource-group "$plan_rg" \
+    --query "kind" \
+    --output tsv
+)"
 if [[ "$plan_reserved" != "true" ]]; then
-  echo "App Service plan must be Linux (reserved=true)." >&2
+  echo "App Service plan '$AZURE_APPSERVICE_PLAN' is not Linux." >&2
+  echo "Current plan details: reserved=$plan_reserved kind=${plan_kind:-<unknown>}." >&2
+  echo "Create/use a Linux plan (az appservice plan create --is-linux ...) and update AZURE_APPSERVICE_PLAN." >&2
   exit 1
 fi
 
@@ -60,8 +69,20 @@ webapp_plan_id="$(
     --query "serverFarmId" \
     --output tsv
 )"
+webapp_kind="$(
+  az webapp show \
+    --name "$AZURE_WEBAPP_NAME" \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --query "kind" \
+    --output tsv
+)"
 if [[ "$webapp_plan_id" != "$plan_id" ]]; then
   echo "Web App is not attached to expected App Service plan." >&2
+  exit 1
+fi
+if [[ "${webapp_kind,,}" != *linux* ]]; then
+  echo "Web App '$AZURE_WEBAPP_NAME' is not Linux-capable (kind=${webapp_kind:-<unknown>})." >&2
+  echo "Use a Linux Web App for container deployment and update AZURE_WEBAPP_NAME." >&2
   exit 1
 fi
 
