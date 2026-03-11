@@ -200,12 +200,7 @@ az ad app federated-credential create \
 PowerShell equivalent:
 
 ```powershell
-$federatedCredential = @{
-  name = "stockmgr-main-deploy"
-  issuer = "https://token.actions.githubusercontent.com"
-  subject = "repo:ruimcoder/stockmgr:ref:refs/heads/main"
-  audiences = @("api://AzureADTokenExchange")
-} | ConvertTo-Json -Depth 4 -Compress
+$federatedCredential = @{name="stockmgr-main-deploy";issuer="https://token.actions.githubusercontent.com";subject="repo:ruimcoder/stockmgr:ref:refs/heads/main";audiences=@("api://AzureADTokenExchange")} | ConvertTo-Json -Depth 4 -Compress
 
 az ad app federated-credential create --id $appObjectId --parameters $federatedCredential
 ```
