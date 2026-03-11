@@ -213,12 +213,19 @@ $federatedCredential | Set-Content -Path "federated-main.json" -Encoding utf8
 az ad app federated-credential create --id $appObjectId --parameters '@federated-main.json'
 ```
 
-If you prefer inline JSON in PowerShell:
+If you prefer inline JSON in PowerShell, use either of these safe forms:
 
 ```powershell
 $federatedCredential = '{"name":"stockmgr-main-deploy","issuer":"https://token.actions.githubusercontent.com","subject":"repo:ruimcoder/stockmgr:ref:refs/heads/main","audiences":["api://AzureADTokenExchange"]}'
 az ad app federated-credential create --id $appObjectId --parameters $federatedCredential
 ```
+
+```powershell
+$federatedCredential = "{`"name`":`"stockmgr-main-deploy`",`"issuer`":`"https://token.actions.githubusercontent.com`",`"subject`":`"repo:ruimcoder/stockmgr:ref:refs/heads/main`",`"audiences`":[`"api://AzureADTokenExchange`"]}"
+az ad app federated-credential create --id $appObjectId --parameters $federatedCredential
+```
+
+> Note: `\"` escaping is for Bash/CMD-style quoting. In native PowerShell, use single-quoted JSON or PowerShell escaping with `` `" ``.
 
 > If you deploy from another branch, create an additional federated credential with that branch in `subject`.
 
