@@ -38,7 +38,8 @@ jobs:
 
       - name: Start app
         run: |
-          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
+          STOCKMGR_ADMIN_EMAILS="device.firefox@example.com,device.chromium@example.com,device.webkit@example.com" \
+            nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
           python - <<'PY'
           import time
           import urllib.request

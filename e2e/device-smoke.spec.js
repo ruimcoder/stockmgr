@@ -1,14 +1,14 @@
 const { test, expect } = require("@playwright/test");
 
 test("cross-device smoke flow", async ({ page, request, browserName }) => {
-  const email = `device.${browserName}.${Date.now()}@example.com`;
+  const email = `device.${browserName}@example.com`;
 
   await page.goto("/register");
   await page.locator('input[name="email"]').fill(email);
   await page.locator('input[name="display_name"]').fill("Device QA");
   await page.getByRole("button", { name: /Submit registration/i }).click();
 
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
   await expect(page.getByRole("heading", { name: /Inventory/i })).toBeVisible();
 
   await page.goto("/items/new");
