@@ -193,6 +193,30 @@ Set **Repository Secrets**:
 - Recommended: `SECRET_KEY`
 - Optional: `EXCEL_API_KEY`
 
+### Where each configuration is made
+- **Azure Resource Group / App Service Plan / Web App**  
+  - Azure Portal: `Resource groups`, `App Services`, `App Service plans`
+  - CLI alternative: `az group create`, `az appservice plan create`, `az webapp create`
+- **Entra app registration + Service Principal**  
+  - Azure Portal: `Microsoft Entra ID -> App registrations` and `Enterprise applications`
+  - CLI alternative: `az ad app create`, `az ad sp create`
+- **Federated credential for GitHub OIDC**  
+  - Azure Portal: `Microsoft Entra ID -> App registrations -> <your app> -> Certificates & secrets -> Federated credentials`
+  - CLI alternative: `az ad app federated-credential create`
+- **Role assignment (Contributor)**  
+  - Azure Portal: `Resource group -> Access control (IAM) -> Add role assignment`
+  - CLI alternative: `az role assignment create ... --scope /subscriptions/.../resourceGroups/...`
+- **GitHub deployment inputs consumed by workflow**  
+  - GitHub Repo: `Settings -> Secrets and variables -> Actions`
+  - Variables tab: `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, `AZURE_WEBAPP_NAME`, optional app config values
+  - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`
+- **Container/runtime settings after deploy**  
+  - Written by workflow step **Configure Azure Web App container** in `.github/workflows/deploy.yml`
+  - View in Azure Portal: `App Service -> <webapp> -> Settings -> Environment variables`
+- **Workflow trigger configuration**  
+  - In repo file: `.github/workflows/deploy.yml` (`push` to `main` + `workflow_dispatch`)
+  - GitHub UI: `Actions -> Deploy to Azure -> Run workflow` for manual runs
+
 ### 4) Run and verify deployment
 1. Push to `main` (or run `Deploy to Azure` manually via `workflow_dispatch` on `main`).
 2. The workflow will:
