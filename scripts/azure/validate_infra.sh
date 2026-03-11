@@ -55,7 +55,8 @@ plan_kind="$(
     --output tsv
 )"
 plan_reserved_normalized="${plan_reserved,,}"
-if [[ "$plan_reserved_normalized" != "true" ]]; then
+plan_kind_normalized="${plan_kind,,}"
+if [[ "$plan_reserved_normalized" != "true" && "$plan_kind_normalized" != *linux* ]]; then
   echo "App Service plan '$AZURE_APPSERVICE_PLAN' is not Linux." >&2
   echo "Current plan details: reserved=$plan_reserved (normalized=$plan_reserved_normalized) kind=${plan_kind:-<unknown>}." >&2
   echo "Create/use a Linux plan (az appservice plan create --is-linux ...) and update AZURE_APPSERVICE_PLAN." >&2
@@ -77,8 +78,12 @@ webapp_kind="$(
     --query "kind" \
     --output tsv
 )"
-if [[ "$webapp_plan_id" != "$plan_id" ]]; then
+plan_id_normalized="${plan_id,,}"
+webapp_plan_id_normalized="${webapp_plan_id,,}"
+if [[ "$webapp_plan_id_normalized" != "$plan_id_normalized" ]]; then
   echo "Web App is not attached to expected App Service plan." >&2
+  echo "Expected plan id: $plan_id" >&2
+  echo "Web app plan id: $webapp_plan_id" >&2
   exit 1
 fi
 if [[ "${webapp_kind,,}" != *linux* ]]; then
