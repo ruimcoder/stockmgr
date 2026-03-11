@@ -131,8 +131,11 @@ az webapp create \
   --name "stockmgr-prod-<unique-suffix>" \
   --resource-group "rg-stockmgr-prod" \
   --plan "asp-stockmgr-prod" \
-  --runtime "PYTHON|3.12"
+  --runtime "PYTHON:3.12"
 ```
+
+> Use `PYTHON:3.12` (colon), not `PYTHON|3.12` (pipe).  
+> You can confirm valid values with `az webapp list-runtimes --os-type linux -o tsv` and filter for `PYTHON` (`grep`/`findstr`/`Select-String` depending on shell).
 
 ### 2) Create Entra ID app + service principal for GitHub OIDC
 ```bash
