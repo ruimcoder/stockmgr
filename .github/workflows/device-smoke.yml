@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
   pull_request:
   push:
-    branches: ["dev", "main"]
 
 jobs:
   cross-device-smoke:
@@ -69,3 +68,4 @@ jobs:
             playwright-report
             test-results
             uvicorn.log
+
