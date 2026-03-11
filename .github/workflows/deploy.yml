@@ -37,6 +37,11 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          AUTH_MODE: ${{ vars.AUTH_MODE }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
+          MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
           GITHUB_REF: ${{ github.ref }}
         run: |
           missing=()
@@ -56,6 +61,16 @@ jobs:
               missing+=("$name")
             fi
           done
+
+          auth_mode_normalized="${AUTH_MODE,,}"
+          if [[ "$auth_mode_normalized" == "google" || "$auth_mode_normalized" == "oauth" ]]; then
+            [[ -z "${GOOGLE_CLIENT_ID:-}" ]] && missing+=("GOOGLE_CLIENT_ID (required by AUTH_MODE=$AUTH_MODE)")
+            [[ -z "${GOOGLE_CLIENT_SECRET:-}" ]] && missing+=("GOOGLE_CLIENT_SECRET (required by AUTH_MODE=$AUTH_MODE)")
+          fi
+          if [[ "$auth_mode_normalized" == "microsoft" || "$auth_mode_normalized" == "oauth" ]]; then
+            [[ -z "${MICROSOFT_CLIENT_ID:-}" ]] && missing+=("MICROSOFT_CLIENT_ID (required by AUTH_MODE=$AUTH_MODE)")
+            [[ -z "${MICROSOFT_CLIENT_SECRET:-}" ]] && missing+=("MICROSOFT_CLIENT_SECRET (required by AUTH_MODE=$AUTH_MODE)")
+          fi
 
           if [[ "${#missing[@]}" -gt 0 ]]; then
             printf 'Missing required deployment configuration: %s\n' "${missing[*]}" >&2
@@ -120,6 +135,10 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           AUTH_MODE: ${{ vars.AUTH_MODE }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
+          MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
           CALENDAR_PROVIDER: ${{ vars.CALENDAR_PROVIDER }}
           RENEWAL_WINDOW_DAYS: ${{ vars.RENEWAL_WINDOW_DAYS }}
           ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
@@ -151,6 +170,10 @@ jobs:
 
           [[ -n "${SECRET_KEY:-}" ]] && app_settings+=("SECRET_KEY=$SECRET_KEY")
           [[ -n "${AUTH_MODE:-}" ]] && app_settings+=("AUTH_MODE=$AUTH_MODE")
+          [[ -n "${GOOGLE_CLIENT_ID:-}" ]] && app_settings+=("GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID")
+          [[ -n "${GOOGLE_CLIENT_SECRET:-}" ]] && app_settings+=("GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET")
+          [[ -n "${MICROSOFT_CLIENT_ID:-}" ]] && app_settings+=("MICROSOFT_CLIENT_ID=$MICROSOFT_CLIENT_ID")
+          [[ -n "${MICROSOFT_CLIENT_SECRET:-}" ]] && app_settings+=("MICROSOFT_CLIENT_SECRET=$MICROSOFT_CLIENT_SECRET")
           [[ -n "${CALENDAR_PROVIDER:-}" ]] && app_settings+=("CALENDAR_PROVIDER=$CALENDAR_PROVIDER")
           [[ -n "${RENEWAL_WINDOW_DAYS:-}" ]] && app_settings+=("RENEWAL_WINDOW_DAYS=$RENEWAL_WINDOW_DAYS")
           [[ -n "${ADMIN_EMAILS:-}" ]] && app_settings+=("ADMIN_EMAILS=$ADMIN_EMAILS")

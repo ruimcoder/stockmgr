@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./stockmgr.db"
     secret_key: str = "change-me-for-production"
 
-    auth_mode: Literal["dev", "google", "microsoft"] = "dev"
+    auth_mode: Literal["dev", "oauth", "google", "microsoft"] = "dev"
     google_client_id: str | None = None
     google_client_secret: str | None = None
     microsoft_client_id: str | None = None
