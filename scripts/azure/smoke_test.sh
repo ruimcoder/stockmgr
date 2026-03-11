@@ -9,6 +9,16 @@ require_var() {
   fi
 }
 
+require_cmd() {
+  local name="$1"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "Missing required command: $name" >&2
+    exit 1
+  fi
+}
+
+require_cmd curl
+
 require_var AZURE_WEBAPP_URL
 
 health_path="${HEALTH_PATH:-/health}"
