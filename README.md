@@ -107,17 +107,187 @@ EXCEL_API_USER_EMAIL=
 - **Device smoke** (`device-smoke.yml`): Playwright smoke tests across Firefox desktop, Android Chrome emulation, and iPhone Safari emulation.
 
 ## Azure deployment pipeline setup
-1. Provision Azure Linux Web App infrastructure (resource group, App Service plan, Web App).
-2. Configure GitHub repository **Variables**:
-   - `AZURE_RESOURCE_GROUP`
-   - `AZURE_APPSERVICE_PLAN`
-   - `AZURE_WEBAPP_NAME`
-   - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP`, `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`
-3. Configure GitHub repository **Secrets**:
-   - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (OIDC service principal)
-   - `GHCR_USERNAME`, `GHCR_TOKEN` (token must allow package read for Azure pull)
-   - Recommended: `SECRET_KEY`, optional `EXCEL_API_KEY`
-4. The workflow runs infra validation first using `scripts/azure/validate_infra.sh`, deploys the container, and then validates runtime with `scripts/azure/smoke_test.sh`.
+
+This repository already includes `.github/workflows/deploy.yml`, which deploys to **Azure Web App for Containers** using OIDC login (no publish profile required).
+
+### 1) Create Azure infrastructure
+Create a Linux App Service plan and Web App in your subscription:
+
+```bash
+az login
+az account set --subscription "<your-subscription-id>"
+
+az group create \
+  --name "rg-stockmgr-prod" \
+  --location "westeurope"
+
+az appservice plan create \
+  --name "asp-stockmgr-prod" \
+  --resource-group "rg-stockmgr-prod" \
+  --is-linux \
+  --sku "B1"
+
+az webapp create \
+  --name "stockmgr-prod-<unique-suffix>" \
+  --resource-group "rg-stockmgr-prod" \
+  --plan "asp-stockmgr-prod" \
+  --runtime "PYTHON:3.12"
+```
+
+> Use `PYTHON:3.12` (colon), not `PYTHON|3.12` (pipe).  
+> You can confirm valid values with `az webapp list-runtimes --os-type linux -o tsv` and filter for `PYTHON` (`grep`/`findstr`/`Select-String` depending on shell).
+
+### 2) Create Entra ID app + service principal for GitHub OIDC
+
+If you use **Bash**:
+
+```bash
+APP_CLIENT_ID="$(az ad app create --display-name "stockmgr-gha-deploy" --query appId -o tsv)"
+APP_OBJECT_ID="$(az ad app list --display-name "stockmgr-gha-deploy" --query "[0].id" -o tsv)"
+
+az ad sp create --id "$APP_CLIENT_ID"
+
+SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+TENANT_ID="$(az account show --query tenantId -o tsv)"
+RESOURCE_GROUP="rg-stockmgr-prod"
+```
+
+If you use **PowerShell**:
+
+```powershell
+$appClientId = az ad app create --display-name "stockmgr-gha-deploy" --query appId -o tsv
+$appObjectId = az ad app list --display-name "stockmgr-gha-deploy" --query "[0].id" -o tsv
+
+az ad sp create --id $appClientId
+
+$subscriptionId = az account show --query id -o tsv
+$tenantId = az account show --query tenantId -o tsv
+$resourceGroup = "rg-stockmgr-prod"
+```
+
+Grant deploy permissions (Contributor on the resource group scope):
+
+```bash
+az role assignment create \
+  --assignee "$APP_CLIENT_ID" \
+  --role Contributor \
+  --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+```
+
+PowerShell equivalent:
+
+```powershell
+az role assignment create --assignee $appClientId --role Contributor --scope "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup"
+```
+
+Add federated credentials for this repository/branch:
+
+```bash
+cat > federated-main.json <<'JSON'
+{
+  "name": "stockmgr-main-deploy",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:ruimcoder/stockmgr:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+JSON
+
+az ad app federated-credential create \
+  --id "$APP_OBJECT_ID" \
+  --parameters @federated-main.json
+```
+
+PowerShell equivalent:
+
+```powershell
+$federatedCredential = @'
+{
+  "name": "stockmgr-main-deploy",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:ruimcoder/stockmgr:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+'@
+$federatedCredential | Set-Content -Path "federated-main.json" -Encoding utf8
+
+az ad app federated-credential create --id $appObjectId --parameters '@federated-main.json'
+```
+
+If you prefer inline JSON in PowerShell, use either of these safe forms:
+
+```powershell
+$federatedCredential = '{"name":"stockmgr-main-deploy","issuer":"https://token.actions.githubusercontent.com","subject":"repo:ruimcoder/stockmgr:ref:refs/heads/main","audiences":["api://AzureADTokenExchange"]}'
+az ad app federated-credential create --id $appObjectId --parameters $federatedCredential
+```
+
+```powershell
+$federatedCredential = "{`"name`":`"stockmgr-main-deploy`",`"issuer`":`"https://token.actions.githubusercontent.com`",`"subject`":`"repo:ruimcoder/stockmgr:ref:refs/heads/main`",`"audiences`":[`"api://AzureADTokenExchange`"]}"
+az ad app federated-credential create --id $appObjectId --parameters $federatedCredential
+```
+
+> Note: `\"` escaping is for Bash/CMD-style quoting. In native PowerShell, use single-quoted JSON or PowerShell escaping with `` `" ``.
+
+> If you deploy from another branch, create an additional federated credential with that branch in `subject`.
+
+### 3) Configure GitHub repository variables and secrets
+Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> Variables`):
+
+- `AZURE_RESOURCE_GROUP` = `rg-stockmgr-prod`
+- `AZURE_APPSERVICE_PLAN` = `asp-stockmgr-prod`
+- `AZURE_WEBAPP_NAME` = `stockmgr-prod-<unique-suffix>`
+- Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP` (if different from web app RG)
+- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`
+
+Set **Repository Secrets**:
+
+- `AZURE_CLIENT_ID` = Entra app client ID (from `az ad app create --query appId`)
+- `AZURE_TENANT_ID` = tenant ID (from `az account show --query tenantId`)
+- `AZURE_SUBSCRIPTION_ID` = subscription ID (from `az account show --query id`)
+- `GHCR_USERNAME` = GitHub username that owns/has access to package
+- `GHCR_TOKEN` = GitHub token/PAT with package read access (for Azure pull from GHCR)
+- Recommended: `SECRET_KEY`
+- Optional: `EXCEL_API_KEY`
+
+### Where each configuration is made
+- **Azure Resource Group / App Service Plan / Web App**  
+  - Azure Portal: `Resource groups`, `App Services`, `App Service plans`
+  - CLI alternative: `az group create`, `az appservice plan create`, `az webapp create`
+- **Entra app registration + Service Principal**  
+  - Azure Portal: `Microsoft Entra ID -> App registrations` and `Enterprise applications`
+  - CLI alternative: `az ad app create`, `az ad sp create`
+- **Federated credential for GitHub OIDC**  
+  - Azure Portal: `Microsoft Entra ID -> App registrations -> <your app> -> Certificates & secrets -> Federated credentials`
+  - CLI alternative: `az ad app federated-credential create`
+- **Role assignment (Contributor)**  
+  - Azure Portal: `Resource group -> Access control (IAM) -> Add role assignment`
+  - CLI alternative: `az role assignment create ... --scope /subscriptions/.../resourceGroups/...`
+- **GitHub deployment inputs consumed by workflow**  
+  - GitHub Repo: `Settings -> Secrets and variables -> Actions`
+  - Variables tab: `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, `AZURE_WEBAPP_NAME`, optional app config values
+  - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`
+- **Container/runtime settings after deploy**  
+  - Written by workflow step **Configure Azure Web App container** in `.github/workflows/deploy.yml`
+  - View in Azure Portal: `App Service -> <webapp> -> Settings -> Environment variables`
+- **Workflow trigger configuration**  
+  - In repo file: `.github/workflows/deploy.yml` (`push` to `main` + `workflow_dispatch`)
+  - GitHub UI: `Actions -> Deploy to Azure -> Run workflow` for manual runs
+
+### 4) Run and verify deployment
+1. Push to `main` (or run `Deploy to Azure` manually via `workflow_dispatch` on `main`).
+2. The workflow will:
+   - validate infra with `scripts/azure/validate_infra.sh`
+   - build/push image to GHCR
+   - configure Web App container + app settings
+   - restart app and run `scripts/azure/smoke_test.sh`
+3. Confirm the app opens at:
+   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net`
+   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok"}`
+
+### 5) Troubleshooting quick checks
+- OIDC login fails: verify federated credential `subject` exactly matches `repo:ruimcoder/stockmgr:ref:refs/heads/main`.
+- Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values.
+- Container pull fails: verify `GHCR_USERNAME`/`GHCR_TOKEN` and package visibility/access.
+- Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
 
 ### Local script dry-run (optional)
 ```powershell
