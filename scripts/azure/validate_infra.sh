@@ -55,7 +55,8 @@ plan_kind="$(
     --output tsv
 )"
 plan_reserved_normalized="${plan_reserved,,}"
-if [[ "$plan_reserved_normalized" != "true" ]]; then
+plan_kind_normalized="${plan_kind,,}"
+if [[ "$plan_reserved_normalized" != "true" && "$plan_kind_normalized" != *linux* ]]; then
   echo "App Service plan '$AZURE_APPSERVICE_PLAN' is not Linux." >&2
   echo "Current plan details: reserved=$plan_reserved (normalized=$plan_reserved_normalized) kind=${plan_kind:-<unknown>}." >&2
   echo "Create/use a Linux plan (az appservice plan create --is-linux ...) and update AZURE_APPSERVICE_PLAN." >&2
