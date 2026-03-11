@@ -59,8 +59,8 @@ jobs:
 
       - name: Validate Azure infrastructure
         run: |
-          chmod +x scripts/azure/validate_infra.sh
-          OUTPUT_ENV_FILE="$GITHUB_ENV" scripts/azure/validate_infra.sh
+          sed -i 's/\r$//' scripts/azure/validate_infra.sh
+          OUTPUT_ENV_FILE="$GITHUB_ENV" bash scripts/azure/validate_infra.sh
 
       - name: Login to GHCR (no external action)
         env:
@@ -130,6 +130,6 @@ jobs:
 
       - name: Smoke test deployed app
         run: |
-          chmod +x scripts/azure/smoke_test.sh
-          scripts/azure/smoke_test.sh
+          sed -i 's/\r$//' scripts/azure/smoke_test.sh
+          bash scripts/azure/smoke_test.sh
 
