@@ -109,6 +109,7 @@ EXCEL_API_USER_EMAIL=
 ## Azure deployment pipeline setup
 
 This repository already includes `.github/workflows/deploy.yml`, which deploys to **Azure Web App for Containers** using OIDC login (no publish profile required).
+The workflow is implemented with shell steps (no third-party GitHub Actions), so it also works when the repository policy allows only owner-local actions.
 
 ### 1) Create Azure infrastructure
 Create a Linux App Service plan and Web App in your subscription:
