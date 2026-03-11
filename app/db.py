@@ -1,10 +1,37 @@
 from collections.abc import Generator
+from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import get_settings
 
 settings = get_settings()
+
+
+def _ensure_sqlite_directory(database_url: str) -> None:
+    if not database_url.startswith("sqlite"):
+        return
+    normalized = database_url.split("?", 1)[0]
+    if normalized.endswith(":memory:"):
+        return
+
+    db_path: Path | None = None
+    if normalized.startswith("sqlite:////"):
+        db_path = Path(normalized.removeprefix("sqlite:////"))
+    elif normalized.startswith("sqlite:///"):
+        raw_path = normalized.removeprefix("sqlite:///")
+        if not raw_path:
+            return
+        db_path = Path(raw_path)
+
+    if not db_path:
+        return
+    if not db_path.is_absolute():
+        db_path = (Path.cwd() / db_path).resolve()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+_ensure_sqlite_directory(settings.database_url)
 connect_args: dict[str, object] = {}
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}

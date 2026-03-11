@@ -125,11 +125,14 @@ jobs:
           ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
           EXCEL_API_KEY: ${{ secrets.EXCEL_API_KEY }}
           EXCEL_API_USER_EMAIL: ${{ vars.EXCEL_API_USER_EMAIL }}
+          DATABASE_URL: ${{ vars.DATABASE_URL }}
         run: |
           if [[ -z "${GHCR_USERNAME:-}" || -z "${GHCR_TOKEN:-}" ]]; then
             echo "GHCR_USERNAME and GHCR_TOKEN secrets are required for Azure pull access." >&2
             exit 1
           fi
+
+          persistent_database_url="${DATABASE_URL:-sqlite:////home/site/data/stockmgr.db}"
 
           az webapp config container set \
             --name "$AZURE_WEBAPP_NAME" \
@@ -141,7 +144,9 @@ jobs:
 
           app_settings=(
             "WEBSITES_PORT=8000"
+            "WEBSITES_ENABLE_APP_SERVICE_STORAGE=true"
             "ENVIRONMENT=production"
+            "DATABASE_URL=$persistent_database_url"
           )
 
           [[ -n "${SECRET_KEY:-}" ]] && app_settings+=("SECRET_KEY=$SECRET_KEY")
