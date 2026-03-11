@@ -237,7 +237,8 @@ Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> V
 - `AZURE_APPSERVICE_PLAN` = `asp-stockmgr-prod`
 - `AZURE_WEBAPP_NAME` = `stockmgr-prod-<unique-suffix>`
 - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP` (if different from web app RG)
-- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`
+- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`, `DATABASE_URL`
+- If `DATABASE_URL` is not set, deploy workflow defaults to persistent App Service storage: `sqlite:////home/site/data/stockmgr.db`
 
 Set **Repository Secrets**:
 
@@ -264,7 +265,7 @@ Set **Repository Secrets**:
   - CLI alternative: `az role assignment create ... --scope /subscriptions/.../resourceGroups/...`
 - **GitHub deployment inputs consumed by workflow**  
   - GitHub Repo: `Settings -> Secrets and variables -> Actions`
-  - Variables tab: `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, `AZURE_WEBAPP_NAME`, optional app config values
+  - Variables tab: `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, `AZURE_WEBAPP_NAME`, optional app config values (`DATABASE_URL` supported)
   - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`
 - **Container/runtime settings after deploy**  
   - Written by workflow step **Configure Azure Web App container** in `.github/workflows/deploy.yml`
@@ -289,6 +290,7 @@ Set **Repository Secrets**:
 - Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values, and confirm both App Service Plan and Web App are Linux (`az appservice plan show --query kind`, `az webapp show --query kind`; `reserved` may be empty on some SKUs).
 - Container pull fails: verify `GHCR_USERNAME`/`GHCR_TOKEN` and package visibility/access.
 - Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
+- Data disappears after redeploy: confirm app settings include `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and `DATABASE_URL` points to `/home/...` (for example `sqlite:////home/site/data/stockmgr.db`), not a path inside the container image filesystem.
 
 ### Local script dry-run (optional)
 ```powershell

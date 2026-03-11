@@ -147,21 +147,55 @@
 
   const startNativeScanner = async () => {
     const supportedFormats = await window.BarcodeDetector.getSupportedFormats?.();
-    const selectedFormats =
+    let selectedFormats =
       supportedFormats && supportedFormats.length
         ? preferredFormats.filter((format) => supportedFormats.includes(format))
         : preferredFormats;
+    if (supportedFormats && supportedFormats.length && !selectedFormats.length) {
+      selectedFormats = supportedFormats;
+    }
     detector = new window.BarcodeDetector({
       formats: selectedFormats.length ? selectedFormats : preferredFormats,
     });
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+    const nativeConstraints = [
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
       },
-      audio: false,
-    });
+      {
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      },
+      {
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      },
+      { video: true, audio: false },
+    ];
+    let streamError = null;
+    for (const constraints of nativeConstraints) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (error) {
+        streamError = error;
+      }
+    }
+    if (!stream) {
+      throw streamError || new Error("Unable to access camera stream.");
+    }
     video.srcObject = stream;
     await video.play();
     setStatus(status.dataset.scanning);
@@ -182,21 +216,49 @@
       .filter(Boolean);
     usingFallback = true;
     setFallbackVisibility(true);
-    html5Scanner = new window.Html5Qrcode("barcode-fallback-reader", {
-      formatsToSupport: formats.length ? formats : undefined,
-      verbose: false,
-    });
-    await html5Scanner.start(
-      { facingMode: "environment" },
-      {
-        fps: 10,
-        qrbox: { width: 280, height: 160 },
-      },
-      (decodedText) => {
-        void submitDetectedBarcode(decodedText);
-      },
-      () => {}
-    );
+    const scannerConfig = {
+      fps: 10,
+      qrbox: { width: 280, height: 160 },
+    };
+    const onDecode = (decodedText) => {
+      void submitDetectedBarcode(decodedText);
+    };
+    const cameraCandidates = [{ facingMode: "environment" }, { facingMode: "user" }];
+    try {
+      const devices = await window.Html5Qrcode.getCameras();
+      for (const device of devices || []) {
+        if (device && device.id) {
+          cameraCandidates.push(device.id);
+        }
+      }
+    } catch (_error) {
+      // Keep default candidates when device listing is unavailable.
+    }
+    let fallbackError = null;
+    for (const cameraConfig of cameraCandidates) {
+      const scanner = new window.Html5Qrcode("barcode-fallback-reader", {
+        formatsToSupport: formats.length ? formats : undefined,
+        verbose: false,
+      });
+      try {
+        await scanner.start(cameraConfig, scannerConfig, onDecode, () => {});
+        html5Scanner = scanner;
+        fallbackError = null;
+        break;
+      } catch (error) {
+        fallbackError = error;
+        try {
+          await scanner.clear();
+        } catch (_clearError) {
+          // Ignore cleanup errors between attempts.
+        }
+      }
+    }
+    if (!html5Scanner) {
+      usingFallback = false;
+      setFallbackVisibility(false);
+      throw fallbackError || new Error("Unable to start compatibility scanner.");
+    }
     setStatus(status.dataset.fallbackScanning);
     setControls(true);
   };
@@ -222,7 +284,12 @@
     setControls(false);
     try {
       if (supportsBarcodeDetector) {
-        await startNativeScanner();
+        try {
+          await startNativeScanner();
+        } catch (_nativeError) {
+          stopNativeScanner();
+          await startFallbackScanner();
+        }
       } else {
         await startFallbackScanner();
       }
