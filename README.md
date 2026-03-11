@@ -138,6 +138,9 @@ az webapp create \
 > You can confirm valid values with `az webapp list-runtimes --os-type linux -o tsv` and filter for `PYTHON` (`grep`/`findstr`/`Select-String` depending on shell).
 
 ### 2) Create Entra ID app + service principal for GitHub OIDC
+
+If you use **Bash**:
+
 ```bash
 APP_CLIENT_ID="$(az ad app create --display-name "stockmgr-gha-deploy" --query appId -o tsv)"
 APP_OBJECT_ID="$(az ad app list --display-name "stockmgr-gha-deploy" --query "[0].id" -o tsv)"
@@ -149,6 +152,19 @@ TENANT_ID="$(az account show --query tenantId -o tsv)"
 RESOURCE_GROUP="rg-stockmgr-prod"
 ```
 
+If you use **PowerShell**:
+
+```powershell
+$appClientId = az ad app create --display-name "stockmgr-gha-deploy" --query appId -o tsv
+$appObjectId = az ad app list --display-name "stockmgr-gha-deploy" --query "[0].id" -o tsv
+
+az ad sp create --id $appClientId
+
+$subscriptionId = az account show --query id -o tsv
+$tenantId = az account show --query tenantId -o tsv
+$resourceGroup = "rg-stockmgr-prod"
+```
+
 Grant deploy permissions (Contributor on the resource group scope):
 
 ```bash
@@ -156,6 +172,12 @@ az role assignment create \
   --assignee "$APP_CLIENT_ID" \
   --role Contributor \
   --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+```
+
+PowerShell equivalent:
+
+```powershell
+az role assignment create --assignee $appClientId --role Contributor --scope "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup"
 ```
 
 Add federated credentials for this repository/branch:
@@ -175,6 +197,19 @@ az ad app federated-credential create \
   --parameters @federated-main.json
 ```
 
+PowerShell equivalent:
+
+```powershell
+$federatedCredential = @{
+  name = "stockmgr-main-deploy"
+  issuer = "https://token.actions.githubusercontent.com"
+  subject = "repo:ruimcoder/stockmgr:ref:refs/heads/main"
+  audiences = @("api://AzureADTokenExchange")
+} | ConvertTo-Json -Depth 4 -Compress
+
+az ad app federated-credential create --id $appObjectId --parameters $federatedCredential
+```
+
 > If you deploy from another branch, create an additional federated credential with that branch in `subject`.
 
 ### 3) Configure GitHub repository variables and secrets
@@ -188,9 +223,9 @@ Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> V
 
 Set **Repository Secrets**:
 
-- `AZURE_CLIENT_ID` = Entra app client ID (`APP_CLIENT_ID`)
-- `AZURE_TENANT_ID` = tenant ID (`TENANT_ID`)
-- `AZURE_SUBSCRIPTION_ID` = subscription ID (`SUBSCRIPTION_ID`)
+- `AZURE_CLIENT_ID` = Entra app client ID (from `az ad app create --query appId`)
+- `AZURE_TENANT_ID` = tenant ID (from `az account show --query tenantId`)
+- `AZURE_SUBSCRIPTION_ID` = subscription ID (from `az account show --query id`)
 - `GHCR_USERNAME` = GitHub username that owns/has access to package
 - `GHCR_TOKEN` = GitHub token/PAT with package read access (for Azure pull from GHCR)
 - Recommended: `SECRET_KEY`
