@@ -8,22 +8,25 @@ from app.config import get_settings
 settings = get_settings()
 
 
-def _ensure_sqlite_directory(database_url: str) -> None:
+def _sqlite_path_from_url(database_url: str) -> Path | None:
     if not database_url.startswith("sqlite"):
-        return
+        return None
     normalized = database_url.split("?", 1)[0]
     if normalized.endswith(":memory:"):
-        return
+        return None
 
-    db_path: Path | None = None
     if normalized.startswith("sqlite:////"):
-        db_path = Path(normalized.removeprefix("sqlite:////"))
-    elif normalized.startswith("sqlite:///"):
+        return Path("/") / normalized.removeprefix("sqlite:////")
+    if normalized.startswith("sqlite:///"):
         raw_path = normalized.removeprefix("sqlite:///")
         if not raw_path:
-            return
-        db_path = Path(raw_path)
+            return None
+        return Path(raw_path)
+    return None
 
+
+def _ensure_sqlite_directory(database_url: str) -> None:
+    db_path = _sqlite_path_from_url(database_url)
     if not db_path:
         return
     if not db_path.is_absolute():
