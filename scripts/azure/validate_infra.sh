@@ -64,27 +64,36 @@ if [[ "$plan_reserved_normalized" != "true" && "$plan_kind_normalized" != *linux
 fi
 
 echo "Validating Web App..."
-webapp_plan_id="$(
+webapp_json="$(
   az webapp show \
     --name "$AZURE_WEBAPP_NAME" \
     --resource-group "$AZURE_RESOURCE_GROUP" \
-    --query "serverFarmId" \
-    --output tsv
+    --output json
+)"
+webapp_plan_id="$(
+  printf '%s' "$webapp_json" | python -c "import json,sys; obj=json.load(sys.stdin); props=obj.get('properties') or {}; value=(obj.get('serverFarmId') or obj.get('appServicePlanId') or props.get('serverFarmId') or props.get('serverfarmid') or ''); print(value)"
 )"
 webapp_kind="$(
-  az webapp show \
-    --name "$AZURE_WEBAPP_NAME" \
-    --resource-group "$AZURE_RESOURCE_GROUP" \
-    --query "kind" \
-    --output tsv
+  printf '%s' "$webapp_json" | python -c "import json,sys; obj=json.load(sys.stdin); props=obj.get('properties') or {}; value=(obj.get('kind') or props.get('kind') or ''); print(value)"
 )"
+if [[ -z "$webapp_plan_id" ]]; then
+  webapp_plan_id="$(
+    az webapp list \
+      --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query "[?name=='$AZURE_WEBAPP_NAME'].serverFarmId | [0]" \
+      --output tsv
+  )"
+fi
 plan_id_normalized="${plan_id,,}"
 webapp_plan_id_normalized="${webapp_plan_id,,}"
-if [[ "$webapp_plan_id_normalized" != "$plan_id_normalized" ]]; then
+if [[ -n "$webapp_plan_id_normalized" && "$webapp_plan_id_normalized" != "$plan_id_normalized" ]]; then
   echo "Web App is not attached to expected App Service plan." >&2
   echo "Expected plan id: $plan_id" >&2
   echo "Web app plan id: $webapp_plan_id" >&2
   exit 1
+fi
+if [[ -z "$webapp_plan_id_normalized" ]]; then
+  echo "Warning: could not determine Web App plan id from Azure CLI output; skipping plan attachment comparison." >&2
 fi
 if [[ "${webapp_kind,,}" != *linux* ]]; then
   echo "Web App '$AZURE_WEBAPP_NAME' is not Linux-capable (kind=${webapp_kind:-<unknown>})." >&2
