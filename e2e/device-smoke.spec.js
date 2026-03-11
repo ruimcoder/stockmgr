@@ -4,8 +4,8 @@ test("cross-device smoke flow", async ({ page, request, browserName }) => {
   const email = `device.${browserName}.${Date.now()}@example.com`;
 
   await page.goto("/register");
-  await page.getByLabel(/Email/i).fill(email);
-  await page.getByLabel(/Display name/i).fill("Device QA");
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="display_name"]').fill("Device QA");
   await page.getByRole("button", { name: /Submit registration/i }).click();
 
   await expect(page).toHaveURL(/\/$/);
