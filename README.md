@@ -107,17 +107,108 @@ EXCEL_API_USER_EMAIL=
 - **Device smoke** (`device-smoke.yml`): Playwright smoke tests across Firefox desktop, Android Chrome emulation, and iPhone Safari emulation.
 
 ## Azure deployment pipeline setup
-1. Provision Azure Linux Web App infrastructure (resource group, App Service plan, Web App).
-2. Configure GitHub repository **Variables**:
-   - `AZURE_RESOURCE_GROUP`
-   - `AZURE_APPSERVICE_PLAN`
-   - `AZURE_WEBAPP_NAME`
-   - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP`, `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`
-3. Configure GitHub repository **Secrets**:
-   - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (OIDC service principal)
-   - `GHCR_USERNAME`, `GHCR_TOKEN` (token must allow package read for Azure pull)
-   - Recommended: `SECRET_KEY`, optional `EXCEL_API_KEY`
-4. The workflow runs infra validation first using `scripts/azure/validate_infra.sh`, deploys the container, and then validates runtime with `scripts/azure/smoke_test.sh`.
+
+This repository already includes `.github/workflows/deploy.yml`, which deploys to **Azure Web App for Containers** using OIDC login (no publish profile required).
+
+### 1) Create Azure infrastructure
+Create a Linux App Service plan and Web App in your subscription:
+
+```bash
+az login
+az account set --subscription "<your-subscription-id>"
+
+az group create \
+  --name "rg-stockmgr-prod" \
+  --location "westeurope"
+
+az appservice plan create \
+  --name "asp-stockmgr-prod" \
+  --resource-group "rg-stockmgr-prod" \
+  --is-linux \
+  --sku "B1"
+
+az webapp create \
+  --name "stockmgr-prod-<unique-suffix>" \
+  --resource-group "rg-stockmgr-prod" \
+  --plan "asp-stockmgr-prod" \
+  --runtime "PYTHON|3.12"
+```
+
+### 2) Create Entra ID app + service principal for GitHub OIDC
+```bash
+APP_CLIENT_ID="$(az ad app create --display-name "stockmgr-gha-deploy" --query appId -o tsv)"
+APP_OBJECT_ID="$(az ad app list --display-name "stockmgr-gha-deploy" --query "[0].id" -o tsv)"
+
+az ad sp create --id "$APP_CLIENT_ID"
+
+SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+TENANT_ID="$(az account show --query tenantId -o tsv)"
+RESOURCE_GROUP="rg-stockmgr-prod"
+```
+
+Grant deploy permissions (Contributor on the resource group scope):
+
+```bash
+az role assignment create \
+  --assignee "$APP_CLIENT_ID" \
+  --role Contributor \
+  --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+```
+
+Add federated credentials for this repository/branch:
+
+```bash
+cat > federated-main.json <<'JSON'
+{
+  "name": "stockmgr-main-deploy",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:ruimcoder/stockmgr:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+JSON
+
+az ad app federated-credential create \
+  --id "$APP_OBJECT_ID" \
+  --parameters @federated-main.json
+```
+
+> If you deploy from another branch, create an additional federated credential with that branch in `subject`.
+
+### 3) Configure GitHub repository variables and secrets
+Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> Variables`):
+
+- `AZURE_RESOURCE_GROUP` = `rg-stockmgr-prod`
+- `AZURE_APPSERVICE_PLAN` = `asp-stockmgr-prod`
+- `AZURE_WEBAPP_NAME` = `stockmgr-prod-<unique-suffix>`
+- Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP` (if different from web app RG)
+- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`
+
+Set **Repository Secrets**:
+
+- `AZURE_CLIENT_ID` = Entra app client ID (`APP_CLIENT_ID`)
+- `AZURE_TENANT_ID` = tenant ID (`TENANT_ID`)
+- `AZURE_SUBSCRIPTION_ID` = subscription ID (`SUBSCRIPTION_ID`)
+- `GHCR_USERNAME` = GitHub username that owns/has access to package
+- `GHCR_TOKEN` = GitHub token/PAT with package read access (for Azure pull from GHCR)
+- Recommended: `SECRET_KEY`
+- Optional: `EXCEL_API_KEY`
+
+### 4) Run and verify deployment
+1. Push to `main` (or run `Deploy to Azure` manually via `workflow_dispatch` on `main`).
+2. The workflow will:
+   - validate infra with `scripts/azure/validate_infra.sh`
+   - build/push image to GHCR
+   - configure Web App container + app settings
+   - restart app and run `scripts/azure/smoke_test.sh`
+3. Confirm the app opens at:
+   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net`
+   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok"}`
+
+### 5) Troubleshooting quick checks
+- OIDC login fails: verify federated credential `subject` exactly matches `repo:ruimcoder/stockmgr:ref:refs/heads/main`.
+- Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values.
+- Container pull fails: verify `GHCR_USERNAME`/`GHCR_TOKEN` and package visibility/access.
+- Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
 
 ### Local script dry-run (optional)
 ```powershell
