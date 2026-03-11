@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-2">{% if mode == "edit" %}{{ t("item.edit_title") }}{% else %}{{ t("item.add_title") }}{% endif %}</h1>
+<p class="text-muted mb-3">{{ t("item.mandatory_note") }}</p>
+
+{% if lookup %}
+  {% if lookup.found %}
+    <div class="alert alert-success py-2">
+      {{ t("item.lookup_found") }} <strong>{{ lookup.provider }}</strong>.
+    </div>
+  {% else %}
+    <div class="alert alert-warning py-2">{{ t("item.lookup_not_found") }}</div>
+  {% endif %}
+{% endif %}
+
+{% if mode != "edit" %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h2 class="h6">{{ t("item.barcode_assisted_entry") }}</h2>
+    <form method="post" action="/items/lookup" class="row g-2" id="barcode-lookup-form">
+      <div class="col-md-4">
+        <label class="form-label">{{ t("label.barcode") }}</label>
+        <input class="form-control" id="lookup-barcode-input" name="barcode" value="{{ draft.barcode or '' }}" required />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ t("label.type") }}</label>
+        <input class="form-control" id="lookup-item-type-input" name="item_type" value="{{ draft.item_type or 'unknown' }}" />
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button class="btn btn-outline-primary w-100" type="submit">{{ t("item.lookup_barcode") }}</button>
+      </div>
+    </form>
+
+    <div class="row g-2 mt-2">
+      <div class="col-md-6">
+        <video id="barcode-camera-preview" class="w-100 rounded border" playsinline muted></video>
+        <div id="barcode-fallback-reader-container" class="d-none mt-2">
+          <div id="barcode-fallback-reader" class="border rounded"></div>
+        </div>
+      </div>
+      <div class="col-md-6 d-flex flex-column gap-2">
+        <button class="btn btn-outline-success" id="start-camera-scan" type="button">{{ t("item.start_camera_scan") }}</button>
+        <button class="btn btn-outline-secondary" id="stop-camera-scan" type="button">{{ t("item.stop_camera_scan") }}</button>
+        <div class="small text-muted">{{ t("item.camera_permission_hint") }}</div>
+        <div
+          id="barcode-scan-status"
+          class="small text-muted"
+          data-idle="{{ t('item.camera_idle') }}"
+          data-unsupported="{{ t('item.camera_unsupported') }}"
+          data-secure-context-required="{{ t('item.camera_secure_context_required') }}"
+          data-media-unsupported="{{ t('item.camera_media_unsupported') }}"
+          data-permission-denied="{{ t('item.camera_permission_denied') }}"
+          data-permission-error="{{ t('item.camera_permission_error') }}"
+          data-scanning="{{ t('item.camera_scanning') }}"
+          data-fallback-scanning="{{ t('item.camera_fallback_scanning') }}"
+          data-detected="{{ t('item.camera_detected') }}"
+        >
+          {{ t("item.camera_idle") }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<form method="post" action="{% if mode == 'edit' %}/items/{{ draft.id }}/update{% else %}/items{% endif %}">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.barcode") }}</label>
+      <input class="form-control" name="barcode" value="{{ draft.barcode or '' }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.batch_code") }}</label>
+      <input class="form-control" name="batch_code" value="{{ draft.batch_code or '' }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.name") }}</label>
+      <input class="form-control" name="name" value="{{ draft.name or '' }}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.type") }}</label>
+      <input class="form-control" name="item_type" value="{{ draft.item_type or 'unknown' }}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.storage_location") }}</label>
+      <input class="form-control" name="storage_location" value="{{ draft.storage_location or '' }}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.storage_bucket") }}</label>
+      <input class="form-control" name="storage_bucket" value="{{ draft.storage_bucket or '' }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.expiry_date") }}</label>
+      <input class="form-control" name="expiry_date" type="date" value="{{ draft.expiry_date or '' }}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.quantity") }}</label>
+      <input class="form-control" name="quantity" type="number" min="0" step="1" value="{{ draft.quantity or 0 }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
+      <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.target_unidoses_location") }}</label>
+      <input class="form-control" name="target_unidoses_location" type="number" min="0" step="1" value="{{ draft.target_unidoses_location or 0 }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.temp_min") }}</label>
+      <input class="form-control" name="temp_min_c" type="number" step="0.1" value="{{ draft.temp_min_c or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.temp_max") }}</label>
+      <input class="form-control" name="temp_max_c" type="number" step="0.1" value="{{ draft.temp_max_c or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.humidity_min") }}</label>
+      <input class="form-control" name="humidity_min_pct" type="number" step="0.1" value="{{ draft.humidity_min_pct or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.humidity_max") }}</label>
+      <input class="form-control" name="humidity_max_pct" type="number" step="0.1" value="{{ draft.humidity_max_pct or '' }}" />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.renewal_date") }}</label>
+      <input class="form-control" name="renewal_date" type="date" value="{{ draft.renewal_date or '' }}" />
+    </div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary" type="submit">{% if mode == "edit" %}{{ t("common.save_changes") }}{% else %}{{ t("common.create_item") }}{% endif %}</button>
+    <a class="btn btn-outline-secondary" href="/">{{ t("common.cancel") }}</a>
+  </div>
+</form>
+{% if mode == "edit" and related_batches %}
+<div class="card mt-4 mb-3">
+  <div class="card-header">{{ t("product.batches") }}</div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0" data-enhanced-table>
+      <thead>
+        <tr>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("table.barcode") }}</th>
+          <th>{{ t("table.location") }}</th>
+          <th>{{ t("table.bucket") }}</th>
+          <th>{{ t("table.expiry") }}</th>
+          <th>{{ t("table.quantity") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for batch in related_batches %}
+        <tr>
+          <td>{{ batch.batch_code or "-" }}</td>
+          <td>{{ batch.barcode or "-" }}</td>
+          <td>{{ batch.storage_location }}</td>
+          <td>{{ batch.storage_bucket or "-" }}</td>
+          <td>{{ batch.expiry_date }}</td>
+          <td>{{ batch.quantity }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">{{ t("product.movement_log") }}</div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0" data-enhanced-table>
+      <thead>
+        <tr>
+          <th>{{ t("log.time") }}</th>
+          <th>{{ t("table.batch") }}</th>
+          <th>{{ t("log.delta") }}</th>
+          <th>{{ t("log.note") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for movement, batch in movement_rows %}
+        <tr>
+          <td>{{ movement.created_at }}</td>
+          <td>{{ batch.batch_code or "-" }}</td>
+          <td>{{ movement.delta }}</td>
+          <td>{{ movement.note or "-" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">{{ t("product.no_log") }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% if mode != "edit" %}
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', path='barcode-camera.js') }}"></script>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stockmgr.local/schemas/barcode-providers.schema.json",
+  "title": "Stockmgr Barcode Provider Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "lookup",
+    "providers"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "lookup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "countryPriority",
+        "chains",
+        "sufficiency"
+      ],
+      "properties": {
+        "countryPriority": {
+          "description": "Global country bias, in order. Use * as worldwide fallback.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              {
+                "type": "string",
+                "const": "*"
+              }
+            ]
+          }
+        },
+        "chains": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "food",
+            "nonFood",
+            "medical",
+            "unknown"
+          ],
+          "properties": {
+            "food": {
+              "$ref": "#/$defs/providerChain"
+            },
+            "nonFood": {
+              "$ref": "#/$defs/providerChain"
+            },
+            "medical": {
+              "$ref": "#/$defs/providerChain"
+            },
+            "unknown": {
+              "$ref": "#/$defs/providerChain"
+            }
+          }
+        },
+        "sufficiency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requiredFields",
+            "minimumFieldMatch",
+            "stopOnFirstSufficientMatch"
+          ],
+          "properties": {
+            "requiredFields": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "name",
+                  "brand",
+                  "category",
+                  "imageUrl",
+                  "size",
+                  "ingredients",
+                  "nutrition"
+                ]
+              }
+            },
+            "minimumFieldMatch": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "stopOnFirstSufficientMatch": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "providers": {
+      "description": "Provider registry keyed by provider identifier.",
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/providerDefinition"
+      },
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9_]+$"
+      }
+    }
+  },
+  "$defs": {
+    "providerChain": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9_]+$"
+      }
+    },
+    "providerDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "displayName",
+        "kind",
+        "enabled",
+        "defaultCountryPriority",
+        "legalReviewRequired",
+        "request",
+        "capabilities"
+      ],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "open",
+            "public",
+            "commercial",
+            "enterprise",
+            "retailer"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "defaultCountryPriority": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              {
+                "type": "string",
+                "const": "*"
+              }
+            ]
+          }
+        },
+        "legalReviewRequired": {
+          "type": "boolean"
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "baseUrl",
+            "timeoutMs",
+            "retries",
+            "userAgent"
+          ],
+          "properties": {
+            "baseUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 500,
+              "maximum": 60000
+            },
+            "retries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "userAgent": {
+              "type": "string",
+              "minLength": 3
+            }
+          }
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apiKeyEnvVar": {
+              "type": "string",
+              "pattern": "^[A-Z0-9_]+$"
+            }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "supportsBarcodeLookup",
+            "supportsSearch",
+            "supportsBulk"
+          ],
+          "properties": {
+            "supportsBarcodeLookup": {
+              "type": "boolean"
+            },
+            "supportsSearch": {
+              "type": "boolean"
+            },
+            "supportsBulk": {
+              "type": "boolean"
+            }
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "retailer"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "legalReviewRequired": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+

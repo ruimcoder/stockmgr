@@ -1,0 +1,49 @@
+body {
+  background-color: #f8fafc;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+table td,
+table th {
+  vertical-align: middle;
+}
+
+#barcode-camera-preview {
+  min-height: 220px;
+  max-height: 280px;
+  object-fit: cover;
+  background: #111827;
+}
+
+#barcode-fallback-reader {
+  min-height: 220px;
+  background: #111827;
+}
+
+#barcode-fallback-reader video {
+  max-height: 280px;
+  object-fit: cover;
+}
+
+.qty-field {
+  width: 90px;
+}
+
+.note-field {
+  min-width: 180px;
+}
+
+.table-filter-row input {
+  min-width: 100px;
+}
+
+@media (max-width: 991.98px) {
+  .navbar .btn-group-sm > .btn,
+  .navbar .btn-sm {
+    min-height: 40px;
+  }
+
+  .table-responsive {
+    border-radius: 0.5rem;
+  }
+}

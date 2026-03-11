@@ -1,0 +1,106 @@
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  deploy-azure:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_APPSERVICE_PLAN: ${{ vars.AZURE_APPSERVICE_PLAN }}
+      AZURE_APPSERVICE_PLAN_RESOURCE_GROUP: ${{ vars.AZURE_APPSERVICE_PLAN_RESOURCE_GROUP }}
+      AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Azure infrastructure
+        run: |
+          chmod +x scripts/azure/validate_infra.sh
+          OUTPUT_ENV_FILE="$GITHUB_ENV" scripts/azure/validate_infra.sh
+
+      - name: Login to GHCR (push)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Configure Azure Web App container
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          AUTH_MODE: ${{ vars.AUTH_MODE }}
+          CALENDAR_PROVIDER: ${{ vars.CALENDAR_PROVIDER }}
+          RENEWAL_WINDOW_DAYS: ${{ vars.RENEWAL_WINDOW_DAYS }}
+          ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
+          EXCEL_API_KEY: ${{ secrets.EXCEL_API_KEY }}
+          EXCEL_API_USER_EMAIL: ${{ vars.EXCEL_API_USER_EMAIL }}
+        run: |
+          if [[ -z "${GHCR_USERNAME:-}" || -z "${GHCR_TOKEN:-}" ]]; then
+            echo "GHCR_USERNAME and GHCR_TOKEN secrets are required for Azure pull access." >&2
+            exit 1
+          fi
+
+          az webapp config container set \
+            --name "$AZURE_WEBAPP_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --container-image-name "$IMAGE_NAME" \
+            --container-registry-url "https://ghcr.io" \
+            --container-registry-user "$GHCR_USERNAME" \
+            --container-registry-password "$GHCR_TOKEN"
+
+          app_settings=(
+            "WEBSITES_PORT=8000"
+            "ENVIRONMENT=production"
+          )
+
+          [[ -n "${SECRET_KEY:-}" ]] && app_settings+=("SECRET_KEY=$SECRET_KEY")
+          [[ -n "${AUTH_MODE:-}" ]] && app_settings+=("AUTH_MODE=$AUTH_MODE")
+          [[ -n "${CALENDAR_PROVIDER:-}" ]] && app_settings+=("CALENDAR_PROVIDER=$CALENDAR_PROVIDER")
+          [[ -n "${RENEWAL_WINDOW_DAYS:-}" ]] && app_settings+=("RENEWAL_WINDOW_DAYS=$RENEWAL_WINDOW_DAYS")
+          [[ -n "${ADMIN_EMAILS:-}" ]] && app_settings+=("ADMIN_EMAILS=$ADMIN_EMAILS")
+          [[ -n "${EXCEL_API_KEY:-}" ]] && app_settings+=("EXCEL_API_KEY=$EXCEL_API_KEY")
+          [[ -n "${EXCEL_API_USER_EMAIL:-}" ]] && app_settings+=("EXCEL_API_USER_EMAIL=$EXCEL_API_USER_EMAIL")
+
+          az webapp config appsettings set \
+            --name "$AZURE_WEBAPP_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --settings "${app_settings[@]}"
+
+          az webapp restart \
+            --name "$AZURE_WEBAPP_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP"
+
+      - name: Smoke test deployed app
+        run: |
+          chmod +x scripts/azure/smoke_test.sh
+          scripts/azure/smoke_test.sh
+
