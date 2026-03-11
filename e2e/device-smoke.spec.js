@@ -1,7 +1,8 @@
 const { test, expect } = require("@playwright/test");
 
 test("cross-device smoke flow", async ({ page, request, browserName }) => {
-  const email = `device.${browserName}@example.com`;
+  const suffix = process.env.SMOKE_EMAIL_SUFFIX || "local";
+  const email = `device.${browserName}+${suffix}@example.com`;
 
   await page.goto("/register");
   await page.locator('input[name="email"]').fill(email);

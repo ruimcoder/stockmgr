@@ -38,8 +38,9 @@ jobs:
 
       - name: Start app
         run: |
-          STOCKMGR_ADMIN_EMAILS="device.firefox@example.com,device.chromium@example.com,device.webkit@example.com" \
-            nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
+          SMOKE_EMAIL_SUFFIX="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ADMIN_EMAILS="device.firefox+${SMOKE_EMAIL_SUFFIX}@example.com,device.chromium+${SMOKE_EMAIL_SUFFIX}@example.com,device.webkit+${SMOKE_EMAIL_SUFFIX}@example.com"
+          nohup env ADMIN_EMAILS="${ADMIN_EMAILS}" uvicorn app.main:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
           python - <<'PY'
           import time
           import urllib.request
@@ -55,6 +56,8 @@ jobs:
           PY
 
       - name: Run Playwright smoke tests
+        env:
+          SMOKE_EMAIL_SUFFIX: ${{ github.run_id }}-${{ github.run_attempt }}
         run: npx --yes playwright@1.54.2 test -c playwright.config.js
 
       - name: Upload Playwright report
