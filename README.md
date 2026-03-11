@@ -286,7 +286,7 @@ Set **Repository Secrets**:
 
 ### 5) Troubleshooting quick checks
 - OIDC login fails: verify federated credential `subject` exactly matches `repo:ruimcoder/stockmgr:ref:refs/heads/main`.
-- Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values.
+- Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values, and confirm both App Service Plan and Web App are Linux (`az appservice plan show --query reserved`, `az webapp show --query kind`).
 - Container pull fails: verify `GHCR_USERNAME`/`GHCR_TOKEN` and package visibility/access.
 - Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
 
