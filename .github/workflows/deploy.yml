@@ -31,6 +31,39 @@ jobs:
           git fetch --depth=1 origin "$GH_SHA"
           git checkout --detach FETCH_HEAD
 
+      - name: Preflight deployment configuration
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          missing=()
+          required=(
+            AZURE_RESOURCE_GROUP
+            AZURE_APPSERVICE_PLAN
+            AZURE_WEBAPP_NAME
+            AZURE_SUBSCRIPTION_ID
+            AZURE_CLIENT_ID
+            AZURE_TENANT_ID
+            GHCR_USERNAME
+            GHCR_TOKEN
+          )
+
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [[ "${#missing[@]}" -gt 0 ]]; then
+            printf 'Missing required deployment configuration: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+          echo "Deploying ref: $GITHUB_REF"
+
       - name: Azure login (OIDC, no external action)
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -59,8 +92,8 @@ jobs:
 
       - name: Validate Azure infrastructure
         run: |
-          chmod +x scripts/azure/validate_infra.sh
-          OUTPUT_ENV_FILE="$GITHUB_ENV" scripts/azure/validate_infra.sh
+          sed -i 's/\r$//' scripts/azure/validate_infra.sh
+          OUTPUT_ENV_FILE="$GITHUB_ENV" bash scripts/azure/validate_infra.sh
 
       - name: Login to GHCR (no external action)
         env:
@@ -130,6 +163,5 @@ jobs:
 
       - name: Smoke test deployed app
         run: |
-          chmod +x scripts/azure/smoke_test.sh
-          scripts/azure/smoke_test.sh
-
+          sed -i 's/\r$//' scripts/azure/smoke_test.sh
+          bash scripts/azure/smoke_test.sh

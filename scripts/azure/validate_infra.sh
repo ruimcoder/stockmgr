@@ -9,6 +9,16 @@ require_var() {
   fi
 }
 
+require_cmd() {
+  local name="$1"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "Missing required command: $name" >&2
+    exit 1
+  fi
+}
+
+require_cmd az
+
 require_var AZURE_RESOURCE_GROUP
 require_var AZURE_WEBAPP_NAME
 require_var AZURE_APPSERVICE_PLAN
