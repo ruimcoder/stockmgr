@@ -78,8 +78,12 @@ webapp_kind="$(
     --query "kind" \
     --output tsv
 )"
-if [[ "$webapp_plan_id" != "$plan_id" ]]; then
+plan_id_normalized="${plan_id,,}"
+webapp_plan_id_normalized="${webapp_plan_id,,}"
+if [[ "$webapp_plan_id_normalized" != "$plan_id_normalized" ]]; then
   echo "Web App is not attached to expected App Service plan." >&2
+  echo "Expected plan id: $plan_id" >&2
+  echo "Web app plan id: $webapp_plan_id" >&2
   exit 1
 fi
 if [[ "${webapp_kind,,}" != *linux* ]]; then

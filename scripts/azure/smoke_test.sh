@@ -31,7 +31,8 @@ echo "Running smoke tests against $AZURE_WEBAPP_URL"
 health_ok="false"
 for attempt in $(seq 1 "$attempts"); do
   health_body="$(curl -fsS --max-time 20 "${AZURE_WEBAPP_URL}${health_path}" || true)"
-  if [[ "$health_body" == *"\"status\":\"ok\""* ]]; then
+  health_body_normalized="${health_body,,}"
+  if [[ "$health_body_normalized" == *"\"status\":\"ok\""* ]]; then
     health_ok="true"
     break
   fi
