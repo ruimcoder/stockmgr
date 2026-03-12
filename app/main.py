@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -8,6 +9,7 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
+from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -36,6 +38,7 @@ from app.services.imports import parse_import_file
 
 settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -551,6 +554,15 @@ def _build_oauth_redirect_uri(
     return callback_uri
 
 
+def _oauth_message_from_error(error: str | None) -> str:
+    normalized_error = (error or "").strip().lower()
+    if normalized_error in {"access_denied", "user_cancelled"}:
+        return "oauth-cancelled"
+    if normalized_error:
+        return "oauth-provider-error"
+    return "oauth-login-failed"
+
+
 @app.get("/auth/{provider}/callback")
 async def oauth_callback(
     request: Request,
@@ -561,19 +573,48 @@ async def oauth_callback(
     if not client:
         raise HTTPException(status_code=404, detail=f"OAuth provider '{provider}' is unavailable.")
 
-    token = await client.authorize_access_token(request)
+    oauth_error = request.query_params.get("error")
+    if oauth_error:
+        message_key = _oauth_message_from_error(oauth_error)
+        return RedirectResponse(f"/login?m={message_key}", status_code=303)
+
+    try:
+        token = await client.authorize_access_token(request)
+    except OAuthError as exc:
+        logger.warning(
+            "OAuth token exchange failed for provider %s: %s (%s)",
+            provider,
+            exc.error,
+            exc.description,
+        )
+        message_key = _oauth_message_from_error(exc.error)
+        return RedirectResponse(f"/login?m={message_key}", status_code=303)
     userinfo = token.get("userinfo")
     if not userinfo:
         if provider == "google":
-            userinfo = await client.userinfo(token=token)
-        elif provider == "microsoft":
-            async with httpx.AsyncClient(timeout=8) as http_client:
-                graph_response = await http_client.get(
-                    "https://graph.microsoft.com/v1.0/me",
-                    headers={"Authorization": f"Bearer {token.get('access_token')}"},
+            try:
+                userinfo = await client.userinfo(token=token)
+            except OAuthError as exc:
+                logger.warning(
+                    "OAuth userinfo lookup failed for provider %s: %s (%s)",
+                    provider,
+                    exc.error,
+                    exc.description,
                 )
-            graph_response.raise_for_status()
-            userinfo = graph_response.json()
+                message_key = _oauth_message_from_error(exc.error)
+                return RedirectResponse(f"/login?m={message_key}", status_code=303)
+        elif provider == "microsoft":
+            try:
+                async with httpx.AsyncClient(timeout=8) as http_client:
+                    graph_response = await http_client.get(
+                        "https://graph.microsoft.com/v1.0/me",
+                        headers={"Authorization": f"Bearer {token.get('access_token')}"},
+                    )
+                graph_response.raise_for_status()
+                userinfo = graph_response.json()
+            except httpx.HTTPError as exc:
+                logger.warning("Microsoft Graph profile lookup failed: %s", exc)
+                return RedirectResponse("/login?m=oauth-provider-error", status_code=303)
         else:
             raise HTTPException(status_code=400, detail="Unsupported OAuth provider.")
 

@@ -180,6 +180,9 @@ TRANSLATIONS = {
         "msg.login-register-first": "Account not found. Please register first.",
         "msg.login-pending-approval": "Your account is pending admin approval.",
         "msg.account-not-approved": "Your account is not approved.",
+        "msg.oauth-cancelled": "Sign-in was cancelled by the provider.",
+        "msg.oauth-provider-error": "The identity provider returned an authentication error.",
+        "msg.oauth-login-failed": "Could not complete OAuth sign-in. Please try again.",
         "msg.user-approved": "User approved.",
         "msg.user-rejected": "User rejected.",
         "msg.user-role-updated": "User role updated.",
@@ -365,6 +368,11 @@ TRANSLATIONS = {
         "msg.login-register-first": "Conta nao encontrada. Registe-se primeiro.",
         "msg.login-pending-approval": "A sua conta aguarda aprovacao do admin.",
         "msg.account-not-approved": "A sua conta nao esta aprovada.",
+        "msg.oauth-cancelled": "O inicio de sessao foi cancelado no fornecedor.",
+        "msg.oauth-provider-error": "O fornecedor de identidade devolveu um erro de autenticacao.",
+        "msg.oauth-login-failed": (
+            "Nao foi possivel concluir o inicio de sessao OAuth. Tente novamente."
+        ),
         "msg.user-approved": "Utilizador aprovado.",
         "msg.user-rejected": "Utilizador rejeitado.",
         "msg.user-role-updated": "Perfil do utilizador atualizado.",
