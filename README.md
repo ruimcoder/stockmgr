@@ -304,6 +304,7 @@ Set **Repository Secrets**:
 3. Confirm the app opens at:
    - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net`
    - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok","version":"<commit-sha>"}` after deployment
+   - The `/health` `version` value should match the SHA shown in the latest successful `Deploy to Azure` run.
 
 ### 5) Troubleshooting quick checks
 - OIDC login fails: verify federated credential `subject` exactly matches `repo:ruimcoder/stockmgr:ref:refs/heads/main`.
