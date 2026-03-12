@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     admin_emails: str = ""
     excel_api_key: str = ""
     excel_api_user_email: str = ""
+    telegram_bot_token: str = ""
+    telegram_webhook_secret: str = ""
+    telegram_allowed_user_id: int | None = None
+    telegram_allowed_chat_id: int | None = None
+    telegram_require_private_chat: bool = True
 
     provider_config_path: str = "config/barcode-providers.default.json"
     provider_schema_path: str = "config/barcode-providers.schema.json"

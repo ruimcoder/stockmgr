@@ -32,10 +32,17 @@ from app.schemas import (
     ExcelStockUpsertRow,
     ItemCreate,
     ItemRead,
+    TelegramUpdate,
 )
 from app.services.barcode import BarcodeLookupService
 from app.services.calendar import CalendarSyncError, CalendarSyncService
 from app.services.imports import parse_import_file
+from app.services.telegram import (
+    TelegramConfigError,
+    TelegramDeliveryError,
+    TelegramSecurityError,
+    TelegramService,
+)
 
 settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent
@@ -89,6 +96,7 @@ if settings.microsoft_client_id and settings.microsoft_client_secret:
 
 barcode_service = BarcodeLookupService(settings)
 calendar_service = CalendarSyncService(settings)
+telegram_service = TelegramService(settings)
 
 
 def _current_language(request: Request) -> str:
@@ -368,6 +376,147 @@ def _storage_location_field_context(
         "storage_location_selection": "",
         "storage_location_new_value": "",
     }
+
+
+def _telegram_operation_message(*, operation: str, actor: str, detail: str) -> str:
+    return f"[stockmgr] {operation}\nactor: {actor}\n{detail}"
+
+
+def _notify_telegram_operation_sync(*, operation: str, actor: str, detail: str) -> None:
+    if not telegram_service.is_enabled:
+        return
+    try:
+        telegram_service.send_message_sync(
+            text=_telegram_operation_message(operation=operation, actor=actor, detail=detail)
+        )
+    except TelegramDeliveryError as exc:
+        logger.warning("Telegram operation notification failed: %s", exc)
+    except TelegramConfigError as exc:
+        logger.warning("Telegram notification skipped due to configuration error: %s", exc)
+
+
+async def _notify_telegram_operation_async(*, operation: str, actor: str, detail: str) -> None:
+    if not telegram_service.is_enabled:
+        return
+    try:
+        await telegram_service.send_message(
+            text=_telegram_operation_message(operation=operation, actor=actor, detail=detail)
+        )
+    except TelegramDeliveryError as exc:
+        logger.warning("Telegram operation notification failed: %s", exc)
+    except TelegramConfigError as exc:
+        logger.warning("Telegram notification skipped due to configuration error: %s", exc)
+
+
+def _telegram_help_message() -> str:
+    return (
+        "stockmgr Telegram commands:\n"
+        "/help - command list\n"
+        "/health - app health and deployed version\n"
+        "/inventory - shared inventory summary\n"
+        "/find <name> - search products by name\n"
+        "/moves [N] - latest stock movements (default 5)"
+    )
+
+
+def _telegram_inventory_summary(session: Session) -> str:
+    batch_count = int(session.exec(select(func.count()).select_from(StockItem)).one() or 0)
+    product_count = int(session.exec(select(func.count(func.distinct(StockItem.name)))).one() or 0)
+    total_quantity = int(
+        session.exec(select(func.coalesce(func.sum(StockItem.quantity), 0))).one() or 0
+    )
+    today = date.today()
+    renewal_cutoff = today + timedelta(days=settings.renewal_window_days)
+    renewal_count = int(
+        session.exec(
+            select(func.count())
+            .select_from(StockItem)
+            .where(
+                StockItem.renewal_date.is_not(None),
+                StockItem.renewal_date >= today,
+                StockItem.renewal_date <= renewal_cutoff,
+            )
+        ).one()
+        or 0
+    )
+    return (
+        "Shared inventory summary:\n"
+        f"Products: {product_count}\n"
+        f"Batches: {batch_count}\n"
+        f"Total quantity: {total_quantity}\n"
+        f"Renewals in next {settings.renewal_window_days} days: {renewal_count}"
+    )
+
+
+def _telegram_find_products(session: Session, query: str) -> str:
+    term = query.strip().lower()
+    if not term:
+        return "Usage: /find <product name>"
+    rows = session.exec(
+        select(
+            StockItem.name,
+            StockItem.item_type,
+            func.sum(StockItem.quantity).label("total_quantity"),
+        )
+        .where(func.lower(StockItem.name).like(f"%{term}%"))
+        .group_by(StockItem.name, StockItem.item_type)
+        .order_by(func.sum(StockItem.quantity).desc(), StockItem.name)
+        .limit(5)
+    ).all()
+    if not rows:
+        return f"No products matched '{query.strip()}'."
+    lines = ["Top matches:"]
+    for name, item_type, total_quantity in rows:
+        lines.append(f"- {name} ({item_type}) qty={int(total_quantity or 0)}")
+    return "\n".join(lines)
+
+
+def _telegram_recent_moves(session: Session, requested_limit: str) -> str:
+    limit = 5
+    normalized = requested_limit.strip()
+    if normalized:
+        if not normalized.isdigit():
+            return "Usage: /moves [N]"
+        limit = max(1, min(int(normalized), 20))
+    rows = session.exec(
+        select(StockMovement, StockItem)
+        .join(StockItem, StockItem.id == StockMovement.stock_item_id)
+        .order_by(StockMovement.created_at.desc())
+        .limit(limit)
+    ).all()
+    if not rows:
+        return "No stock movements recorded yet."
+    lines = ["Latest stock movements:"]
+    for movement, item in rows:
+        sign = "+" if movement.delta >= 0 else ""
+        note = f" ({movement.note})" if movement.note else ""
+        lines.append(
+            f"- {movement.created_at.date()} {item.name} {sign}{movement.delta}{note}"
+        )
+    return "\n".join(lines)
+
+
+def _handle_telegram_command(session: Session, text: str) -> str:
+    command_line = text.strip()
+    if not command_line.startswith("/"):
+        return "Unknown input. Send /help to list supported commands."
+
+    parts = command_line.split(maxsplit=1)
+    command = parts[0].lower()
+    argument = parts[1] if len(parts) > 1 else ""
+
+    if command in {"/start", "/help"}:
+        return _telegram_help_message()
+    if command == "/health":
+        return f"Health: ok\nVersion: {settings.app_version}"
+    if command == "/inventory":
+        return _telegram_inventory_summary(session)
+    if command == "/find":
+        return _telegram_find_products(session, argument)
+    if command == "/moves":
+        return _telegram_recent_moves(session, argument)
+
+    return "Unsupported command. Send /help to list supported commands."
 
 
 @app.get("/health")
@@ -1102,6 +1251,14 @@ async def item_create(request: Request, session: Session = Depends(get_session))
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    await _notify_telegram_operation_async(
+        operation="item-created",
+        actor=user.email,
+        detail=(
+            f"name={item.name} type={item.item_type} qty={item.quantity} "
+            f"location={item.storage_location}"
+        ),
+    )
 
     return RedirectResponse("/?m=item-created", status_code=303)
 
@@ -1147,6 +1304,14 @@ async def item_update(item_id: int, request: Request, session: Session = Depends
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    await _notify_telegram_operation_async(
+        operation="item-updated",
+        actor=user.email,
+        detail=(
+            f"name={item.name} type={item.item_type} qty={item.quantity} "
+            f"delta={quantity_delta} location={item.storage_location}"
+        ),
+    )
 
     return RedirectResponse("/?m=item-updated", status_code=303)
 
@@ -1188,6 +1353,14 @@ def adjust_stock_quantity(
         )
     )
     session.commit()
+    _notify_telegram_operation_sync(
+        operation="stock-move",
+        actor=user.email,
+        detail=(
+            f"name={item.name} type={item.item_type} delta={delta} "
+            f"new_qty={item.quantity} note={(note or '').strip() or '-'}"
+        ),
+    )
 
     target = request.headers.get("referer") or "/"
     return RedirectResponse(target, status_code=303)
@@ -1198,11 +1371,20 @@ def item_delete(item_id: int, request: Request, session: Session = Depends(get_s
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
+    user = maybe_user
     item = session.get(StockItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
+    deleted_name = item.name
+    deleted_type = item.item_type
+    deleted_location = item.storage_location
     session.delete(item)
     session.commit()
+    _notify_telegram_operation_sync(
+        operation="item-deleted",
+        actor=user.email,
+        detail=f"name={deleted_name} type={deleted_type} location={deleted_location}",
+    )
     return RedirectResponse("/?m=item-deleted", status_code=303)
 
 
@@ -1230,6 +1412,11 @@ async def import_items(
         item = StockItem(**item_in.model_dump(), user_id=user.id)
         session.add(item)
     session.commit()
+    await _notify_telegram_operation_async(
+        operation="items-imported",
+        actor=user.email,
+        detail=f"imported={result.imported} failed={result.failed}",
+    )
     return _render(request, "import.html", {"user": user, "result": result})
 
 
@@ -1337,6 +1524,14 @@ async def api_create_item(
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    await _notify_telegram_operation_async(
+        operation="api-item-created",
+        actor=user.email,
+        detail=(
+            f"name={item.name} type={item.item_type} qty={item.quantity} "
+            f"location={item.storage_location}"
+        ),
+    )
     return _to_read_model(item)
 
 
@@ -1384,6 +1579,14 @@ async def api_excel_update_stock(
         await calendar_service.schedule_renewal(user=user, item=item)
     except CalendarSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    await _notify_telegram_operation_async(
+        operation="excel-item-updated",
+        actor=user.email,
+        detail=(
+            f"id={item.id} name={item.name} qty={item.quantity} "
+            f"delta={quantity_delta} location={item.storage_location}"
+        ),
+    )
     return _to_read_model(item)
 
 
@@ -1446,6 +1649,14 @@ async def api_excel_upsert_stocks(
             await calendar_service.schedule_renewal(user=user, item=item)
         except CalendarSyncError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        await _notify_telegram_operation_async(
+            operation="excel-upsert-row",
+            actor=user.email,
+            detail=(
+                f"id={item.id} name={item.name} qty={item.quantity} "
+                f"location={item.storage_location}"
+            ),
+        )
         rows.append(_to_read_model(item))
 
     return {"created": created, "updated": updated, "rows": rows}
@@ -1458,6 +1669,45 @@ async def api_barcode_lookup(
 ):
     _ = user
     return await barcode_service.lookup(payload.barcode, payload.item_type)
+
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request, session: Session = Depends(get_session)):
+    if not telegram_service.is_enabled:
+        raise HTTPException(status_code=503, detail="Telegram integration is not configured.")
+
+    secret_token = request.headers.get("x-telegram-bot-api-secret-token")
+    payload = await request.json()
+    try:
+        update = TelegramUpdate.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    message = update.message or update.edited_message
+    if not message or not message.text:
+        return {"ok": True, "ignored": "unsupported-update"}
+
+    try:
+        incoming = telegram_service.parse_incoming(
+            text=message.text,
+            user_id=message.from_user.id,
+            chat_id=message.chat.id,
+            chat_type=message.chat.type,
+            provided_secret=secret_token,
+        )
+    except TelegramConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TelegramSecurityError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    command_output = _handle_telegram_command(session, incoming.text)
+    try:
+        await telegram_service.send_message(text=command_output, chat_id=incoming.chat_id)
+    except TelegramConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TelegramDeliveryError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @app.exception_handler(HTTPException)

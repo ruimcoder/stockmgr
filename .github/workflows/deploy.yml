@@ -53,6 +53,11 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
           MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          TELEGRAM_ALLOWED_USER_ID: ${{ vars.TELEGRAM_ALLOWED_USER_ID }}
+          TELEGRAM_ALLOWED_CHAT_ID: ${{ vars.TELEGRAM_ALLOWED_CHAT_ID }}
+          TELEGRAM_REQUIRE_PRIVATE_CHAT: ${{ vars.TELEGRAM_REQUIRE_PRIVATE_CHAT }}
           GITHUB_REF: ${{ github.ref }}
         run: |
           missing=()
@@ -81,6 +86,12 @@ jobs:
           if [[ "$auth_mode_normalized" == "microsoft" || "$auth_mode_normalized" == "oauth" ]]; then
             [[ -z "${MICROSOFT_CLIENT_ID:-}" ]] && missing+=("MICROSOFT_CLIENT_ID (required by AUTH_MODE=$AUTH_MODE)")
             [[ -z "${MICROSOFT_CLIENT_SECRET:-}" ]] && missing+=("MICROSOFT_CLIENT_SECRET (required by AUTH_MODE=$AUTH_MODE)")
+          fi
+          if [[ -n "${TELEGRAM_BOT_TOKEN:-}" || -n "${TELEGRAM_WEBHOOK_SECRET:-}" || -n "${TELEGRAM_ALLOWED_USER_ID:-}" || -n "${TELEGRAM_ALLOWED_CHAT_ID:-}" ]]; then
+            [[ -z "${TELEGRAM_BOT_TOKEN:-}" ]] && missing+=("TELEGRAM_BOT_TOKEN (required when Telegram integration is enabled)")
+            [[ -z "${TELEGRAM_WEBHOOK_SECRET:-}" ]] && missing+=("TELEGRAM_WEBHOOK_SECRET (required when Telegram integration is enabled)")
+            [[ -z "${TELEGRAM_ALLOWED_USER_ID:-}" ]] && missing+=("TELEGRAM_ALLOWED_USER_ID (required when Telegram integration is enabled)")
+            [[ -z "${TELEGRAM_ALLOWED_CHAT_ID:-}" ]] && missing+=("TELEGRAM_ALLOWED_CHAT_ID (required when Telegram integration is enabled)")
           fi
 
           if [[ "${#missing[@]}" -gt 0 ]]; then
@@ -149,6 +160,11 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
           MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          TELEGRAM_ALLOWED_USER_ID: ${{ vars.TELEGRAM_ALLOWED_USER_ID }}
+          TELEGRAM_ALLOWED_CHAT_ID: ${{ vars.TELEGRAM_ALLOWED_CHAT_ID }}
+          TELEGRAM_REQUIRE_PRIVATE_CHAT: ${{ vars.TELEGRAM_REQUIRE_PRIVATE_CHAT }}
           CALENDAR_PROVIDER: ${{ vars.CALENDAR_PROVIDER }}
           RENEWAL_WINDOW_DAYS: ${{ vars.RENEWAL_WINDOW_DAYS }}
           ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
@@ -192,6 +208,11 @@ jobs:
           [[ -n "${GOOGLE_CLIENT_SECRET:-}" ]] && app_settings+=("GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET")
           [[ -n "${MICROSOFT_CLIENT_ID:-}" ]] && app_settings+=("MICROSOFT_CLIENT_ID=$MICROSOFT_CLIENT_ID")
           [[ -n "${MICROSOFT_CLIENT_SECRET:-}" ]] && app_settings+=("MICROSOFT_CLIENT_SECRET=$MICROSOFT_CLIENT_SECRET")
+          [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]] && app_settings+=("TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN")
+          [[ -n "${TELEGRAM_WEBHOOK_SECRET:-}" ]] && app_settings+=("TELEGRAM_WEBHOOK_SECRET=$TELEGRAM_WEBHOOK_SECRET")
+          [[ -n "${TELEGRAM_ALLOWED_USER_ID:-}" ]] && app_settings+=("TELEGRAM_ALLOWED_USER_ID=$TELEGRAM_ALLOWED_USER_ID")
+          [[ -n "${TELEGRAM_ALLOWED_CHAT_ID:-}" ]] && app_settings+=("TELEGRAM_ALLOWED_CHAT_ID=$TELEGRAM_ALLOWED_CHAT_ID")
+          [[ -n "${TELEGRAM_REQUIRE_PRIVATE_CHAT:-}" ]] && app_settings+=("TELEGRAM_REQUIRE_PRIVATE_CHAT=$TELEGRAM_REQUIRE_PRIVATE_CHAT")
           [[ -n "${CALENDAR_PROVIDER:-}" ]] && app_settings+=("CALENDAR_PROVIDER=$CALENDAR_PROVIDER")
           [[ -n "${RENEWAL_WINDOW_DAYS:-}" ]] && app_settings+=("RENEWAL_WINDOW_DAYS=$RENEWAL_WINDOW_DAYS")
           [[ -n "${ADMIN_EMAILS:-}" ]] && app_settings+=("ADMIN_EMAILS=$ADMIN_EMAILS")

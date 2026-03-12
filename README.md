@@ -23,6 +23,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Shopping list computes quantity-to-buy totals and per-location distribution.
 - Homepage quick search: find by name or barcode, opening product detail when in stock or prefilled new-item form when not in stock.
 - Excel integration API for read/write stock editing (`/api/excel/stocks`, `/api/excel/stocks/{id}`, `/api/excel/stocks/upsert`) with API-key authentication.
+- Secure Telegram operations channel (`/api/telegram/webhook`) with strict sender validation (webhook secret + allowed user/chat IDs) and command-driven status/inventory outputs.
 - All list tables support paging, column filtering, and column ordering.
 - Renewal plan includes configurable time window (`RENEWAL_WINDOW_DAYS` default, overrideable in UI).
 - Users can register; account access requires admin approval. Admins can approve/reject users and toggle admin role.
@@ -92,6 +93,13 @@ GS1_US_API_KEY=
 # Optional Excel API access
 EXCEL_API_KEY=
 EXCEL_API_USER_EMAIL=
+
+# Optional Telegram operations channel
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+TELEGRAM_ALLOWED_USER_ID=
+TELEGRAM_ALLOWED_CHAT_ID=
+TELEGRAM_REQUIRE_PRIVATE_CHAT=true
 ```
 
 ## Excel datasource API (read + write)
@@ -101,6 +109,16 @@ EXCEL_API_USER_EMAIL=
   - `GET /api/excel/stocks` → list stock rows (read datasource).
   - `PUT /api/excel/stocks/{id}` → update a row.
   - `POST /api/excel/stocks/upsert` → batch create/update rows from worksheet data.
+
+## Telegram operations channel
+- Endpoint: `POST /api/telegram/webhook`
+- Security gates:
+  - `X-Telegram-Bot-Api-Secret-Token` header must match `TELEGRAM_WEBHOOK_SECRET`.
+  - Sender `from.id` must match `TELEGRAM_ALLOWED_USER_ID`.
+  - Chat `chat.id` must match `TELEGRAM_ALLOWED_CHAT_ID`.
+  - Private chat can be enforced with `TELEGRAM_REQUIRE_PRIVATE_CHAT=true`.
+- Supported commands: `/help`, `/health`, `/inventory`, `/find <name>`, `/moves [N]`.
+- Operational outputs: item create/update/delete/move/import and Excel API write flows emit Telegram notifications when integration is enabled.
 
 ## Build and deploy
 - **CI** (`ci.yml`): lint + tests + Docker build on push/PR.
@@ -238,7 +256,7 @@ Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> V
 - `AZURE_APPSERVICE_PLAN` = `asp-stockmgr-prod`
 - `AZURE_WEBAPP_NAME` = `stockmgr-prod-<unique-suffix>`
 - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP` (if different from web app RG)
-- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`, `DATABASE_URL`, `PUBLIC_BASE_URL`
+- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`, `DATABASE_URL`, `PUBLIC_BASE_URL`, `TELEGRAM_ALLOWED_USER_ID`, `TELEGRAM_ALLOWED_CHAT_ID`, `TELEGRAM_REQUIRE_PRIVATE_CHAT`
 - For Gmail + Outlook login, set `AUTH_MODE=oauth`.
 - If `DATABASE_URL` is not set, deploy workflow defaults to persistent App Service storage: `sqlite:////home/site/data/stockmgr.db`
 
@@ -251,6 +269,8 @@ Set **Repository Secrets**:
 - `GHCR_TOKEN` = GitHub token/PAT with package read access (for Azure pull from GHCR)
 - Recommended: `SECRET_KEY`
 - Optional: `EXCEL_API_KEY`
+- Optional: `TELEGRAM_BOT_TOKEN`
+- Optional: `TELEGRAM_WEBHOOK_SECRET`
 - OAuth (required when `AUTH_MODE` is `google`, `microsoft`, or `oauth`):
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET`
@@ -287,7 +307,7 @@ Set **Repository Secrets**:
 - **GitHub deployment inputs consumed by workflow**  
   - GitHub Repo: `Settings -> Secrets and variables -> Actions`
   - Variables tab: `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, `AZURE_WEBAPP_NAME`, optional app config values (`DATABASE_URL` supported)
-  - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`
+  - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
 - **Container/runtime settings after deploy**  
   - Written by workflow step **Configure Azure Web App container** in `.github/workflows/deploy.yml`
   - View in Azure Portal: `App Service -> <webapp> -> Settings -> Environment variables`
@@ -318,6 +338,7 @@ Set **Repository Secrets**:
 - Microsoft callback `server_error`: the app now redirects safely back to `/login` with an OAuth message. If it appears, verify Microsoft Entra app registration redirect URI and API permissions/consent (`User.Read`, calendar scopes).
 - Microsoft callback with `code` followed by internal error: issuer-claim validation is now relaxed for Microsoft token exchange to support tenant-specific issuer values from `/common`; callback failures now redirect to `/login` with a message instead of returning 500.
 - Data disappears after redeploy: confirm app settings include `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and `DATABASE_URL` points to `/home/...` (for example `sqlite:////home/site/data/stockmgr.db`), not a path inside the container image filesystem.
+- Telegram webhook returns `403`: verify `TELEGRAM_ALLOWED_USER_ID`, `TELEGRAM_ALLOWED_CHAT_ID`, and `X-Telegram-Bot-Api-Secret-Token` values exactly match app configuration.
 
 ### Local script dry-run (optional)
 ```powershell
