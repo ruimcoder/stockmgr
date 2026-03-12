@@ -238,6 +238,7 @@ Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> V
 - `AZURE_WEBAPP_NAME` = `stockmgr-prod-<unique-suffix>`
 - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP` (if different from web app RG)
 - Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`, `DATABASE_URL`
+- For Gmail + Outlook login, set `AUTH_MODE=oauth`.
 - If `DATABASE_URL` is not set, deploy workflow defaults to persistent App Service storage: `sqlite:////home/site/data/stockmgr.db`
 
 Set **Repository Secrets**:
@@ -249,6 +250,25 @@ Set **Repository Secrets**:
 - `GHCR_TOKEN` = GitHub token/PAT with package read access (for Azure pull from GHCR)
 - Recommended: `SECRET_KEY`
 - Optional: `EXCEL_API_KEY`
+- OAuth (required when `AUTH_MODE` is `google`, `microsoft`, or `oauth`):
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `MICROSOFT_CLIENT_ID`
+  - `MICROSOFT_CLIENT_SECRET`
+
+### 3.1) Configure OAuth providers for gmail.com and outlook.com
+1. **Google (gmail.com)**:
+   - Google Cloud Console -> `APIs & Services` -> `Credentials` -> create an **OAuth 2.0 Client ID** (Web application).
+   - Authorized redirect URI:
+     - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/auth/google/callback`
+   - Save values to GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+
+2. **Microsoft (outlook.com)**:
+   - Azure Portal -> `Microsoft Entra ID` -> `App registrations` -> create app.
+   - Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**.
+   - Add Web redirect URI:
+     - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/auth/microsoft/callback`
+   - Save values to GitHub secrets: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`.
 
 ### Where each configuration is made
 - **Azure Resource Group / App Service Plan / Web App**  
@@ -266,7 +286,7 @@ Set **Repository Secrets**:
 - **GitHub deployment inputs consumed by workflow**  
   - GitHub Repo: `Settings -> Secrets and variables -> Actions`
   - Variables tab: `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, `AZURE_WEBAPP_NAME`, optional app config values (`DATABASE_URL` supported)
-  - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`
+  - Secrets tab: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_USERNAME`, `GHCR_TOKEN`, `SECRET_KEY`, `EXCEL_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`
 - **Container/runtime settings after deploy**  
   - Written by workflow step **Configure Azure Web App container** in `.github/workflows/deploy.yml`
   - View in Azure Portal: `App Service -> <webapp> -> Settings -> Environment variables`
@@ -283,13 +303,15 @@ Set **Repository Secrets**:
    - restart app and run `scripts/azure/smoke_test.sh`
 3. Confirm the app opens at:
    - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net`
-   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok"}`
+   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok","version":"<commit-sha>"}` after deployment
 
 ### 5) Troubleshooting quick checks
 - OIDC login fails: verify federated credential `subject` exactly matches `repo:ruimcoder/stockmgr:ref:refs/heads/main`.
 - Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values, and confirm both App Service Plan and Web App are Linux (`az appservice plan show --query kind`, `az webapp show --query kind`; `reserved` may be empty on some SKUs).
 - Container pull fails: verify `GHCR_USERNAME`/`GHCR_TOKEN` and package visibility/access.
 - Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
+- Manual re-run of an old workflow run: this is now blocked for `push` events to prevent stale commit rollback deployments.
+- OAuth buttons missing: ensure `AUTH_MODE` is not `dev` and required OAuth secrets are set in GitHub (`GOOGLE_*`, `MICROSOFT_*`) with correct callback URLs.
 - Data disappears after redeploy: confirm app settings include `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and `DATABASE_URL` points to `/home/...` (for example `sqlite:////home/site/data/stockmgr.db`), not a path inside the container image filesystem.
 
 ### Local script dry-run (optional)

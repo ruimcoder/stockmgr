@@ -8,11 +8,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "stockmgr"
+    app_version: str = "dev"
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "sqlite:///./stockmgr.db"
     secret_key: str = "change-me-for-production"
 
-    auth_mode: Literal["dev", "google", "microsoft"] = "dev"
+    auth_mode: Literal["dev", "oauth", "google", "microsoft"] = "dev"
     google_client_id: str | None = None
     google_client_secret: str | None = None
     microsoft_client_id: str | None = None

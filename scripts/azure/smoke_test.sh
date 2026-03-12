@@ -25,6 +25,8 @@ health_path="${HEALTH_PATH:-/health}"
 manifest_path="${MANIFEST_PATH:-/manifest.webmanifest}"
 attempts="${SMOKE_ATTEMPTS:-30}"
 sleep_seconds="${SMOKE_SLEEP_SECONDS:-10}"
+expected_app_version="${EXPECTED_APP_VERSION:-}"
+expected_app_version_normalized="${expected_app_version,,}"
 
 echo "Running smoke tests against $AZURE_WEBAPP_URL"
 
@@ -33,6 +35,11 @@ for attempt in $(seq 1 "$attempts"); do
   health_body="$(curl -fsS --max-time 20 "${AZURE_WEBAPP_URL}${health_path}" || true)"
   health_body_normalized="${health_body,,}"
   if [[ "$health_body_normalized" == *"\"status\":\"ok\""* ]]; then
+    if [[ -n "$expected_app_version_normalized" && "$health_body_normalized" != *"\"version\":\"$expected_app_version_normalized\""* ]]; then
+      echo "Health is OK but version is not $expected_app_version yet; waiting for rollout..."
+      sleep "$sleep_seconds"
+      continue
+    fi
     health_ok="true"
     break
   fi
