@@ -6,6 +6,6 @@ def test_provider_config_uses_portugal_first():
     assert config["lookup"]["countryPriority"][0] == "PT"
     assert config["lookup"]["chains"]["food"][0] == "open_food_facts"
     assert "continente_pt" in config["lookup"]["chains"]["food"]
-    assert config["providers"]["continente_pt"]["enabled"] is False
+    assert config["providers"]["continente_pt"]["enabled"] is True
     assert config["providers"]["continente_pt"]["capabilities"]["supportsBarcodeLookup"] is True
     assert config["providers"]["auchan_pt"]["enabled"] is False
