@@ -314,6 +314,7 @@ Set **Repository Secrets**:
 - Manual re-run of an old workflow run: this is now blocked for `push` events to prevent stale commit rollback deployments.
 - OAuth buttons missing: ensure `AUTH_MODE` is not `dev` and required OAuth secrets are set in GitHub (`GOOGLE_*`, `MICROSOFT_*`) with correct callback URLs.
 - `Error 400: redirect_uri_mismatch` (Google): verify Google redirect URI exactly matches `/auth/google/callback` and set `PUBLIC_BASE_URL` (GitHub Actions variable) to your public HTTPS app URL so runtime-generated callback URIs are stable behind Azure proxying.
+- Microsoft callback `server_error`: the app now redirects safely back to `/login` with an OAuth message. If it appears, verify Microsoft Entra app registration redirect URI and API permissions/consent (`User.Read`, calendar scopes).
 - Data disappears after redeploy: confirm app settings include `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and `DATABASE_URL` points to `/home/...` (for example `sqlite:////home/site/data/stockmgr.db`), not a path inside the container image filesystem.
 
 ### Local script dry-run (optional)
