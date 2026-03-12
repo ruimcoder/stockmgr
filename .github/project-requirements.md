@@ -96,7 +96,7 @@ The application must ship with this default provider order:
 - Default policy: do not rely on retailer scraping as a primary source.
 - Only enable retailer connectors through explicit configuration and legal/compliance review of terms of use.
 - Any retailer connector must be isolated behind the provider abstraction layer so it can be disabled without affecting core flows.
-- Current implementation status: `continente_pt` barcode search scraping support is available in the provider layer, but disabled by default pending explicit enablement.
+- Current implementation status: `continente_pt` barcode search scraping support is available and active in the default provider configuration.
 
 ## Open refinement areas
 - OAuth providers and account model

@@ -215,7 +215,7 @@
     "continente_pt": {
       "displayName": "Continente Portugal Connector",
       "kind": "retailer",
-      "enabled": false,
+      "enabled": true,
       "defaultCountryPriority": [
         "PT"
       ],

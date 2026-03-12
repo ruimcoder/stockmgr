@@ -103,8 +103,8 @@ TELEGRAM_REQUIRE_PRIVATE_CHAT=true
 ```
 
 Barcode provider behavior is driven by `config/barcode-providers.default.json`.
-The `continente_pt` connector is implemented with barcode search + product-page scraping,
-but remains disabled by default. Enable it explicitly in provider config after legal/compliance review.
+The `continente_pt` connector is implemented with barcode search + product-page scraping
+and is active in the default lookup chain configuration.
 
 ## Excel datasource API (read + write)
 - Authentication: set `X-Excel-Api-Key` header (or `X-API-Key`) to `EXCEL_API_KEY`.
