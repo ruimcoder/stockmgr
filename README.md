@@ -237,7 +237,7 @@ Set **Repository Variables** (`Settings -> Secrets and variables -> Actions -> V
 - `AZURE_APPSERVICE_PLAN` = `asp-stockmgr-prod`
 - `AZURE_WEBAPP_NAME` = `stockmgr-prod-<unique-suffix>`
 - Optional: `AZURE_APPSERVICE_PLAN_RESOURCE_GROUP` (if different from web app RG)
-- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`, `DATABASE_URL`
+- Optional app config: `AUTH_MODE`, `CALENDAR_PROVIDER`, `RENEWAL_WINDOW_DAYS`, `ADMIN_EMAILS`, `EXCEL_API_USER_EMAIL`, `DATABASE_URL`, `PUBLIC_BASE_URL`
 - For Gmail + Outlook login, set `AUTH_MODE=oauth`.
 - If `DATABASE_URL` is not set, deploy workflow defaults to persistent App Service storage: `sqlite:////home/site/data/stockmgr.db`
 
@@ -259,14 +259,14 @@ Set **Repository Secrets**:
 ### 3.1) Configure OAuth providers for gmail.com and outlook.com
 1. **Google (gmail.com)**:
    - Google Cloud Console -> `APIs & Services` -> `Credentials` -> create an **OAuth 2.0 Client ID** (Web application).
-   - Authorized redirect URI:
+   - Authorized redirect URI (must match exactly, including `https`):
      - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/auth/google/callback`
    - Save values to GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
 2. **Microsoft (outlook.com)**:
    - Azure Portal -> `Microsoft Entra ID` -> `App registrations` -> create app.
    - Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**.
-   - Add Web redirect URI:
+   - Add Web redirect URI (must match exactly, including `https`):
      - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/auth/microsoft/callback`
    - Save values to GitHub secrets: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`.
 
@@ -312,6 +312,7 @@ Set **Repository Secrets**:
 - Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
 - Manual re-run of an old workflow run: this is now blocked for `push` events to prevent stale commit rollback deployments.
 - OAuth buttons missing: ensure `AUTH_MODE` is not `dev` and required OAuth secrets are set in GitHub (`GOOGLE_*`, `MICROSOFT_*`) with correct callback URLs.
+- `Error 400: redirect_uri_mismatch` (Google): verify Google redirect URI exactly matches `/auth/google/callback` and set `PUBLIC_BASE_URL` (GitHub Actions variable) to your public HTTPS app URL so runtime-generated callback URIs are stable behind Azure proxying.
 - Data disappears after redeploy: confirm app settings include `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and `DATABASE_URL` points to `/home/...` (for example `sqlite:////home/site/data/stockmgr.db`), not a path inside the container image filesystem.
 
 ### Local script dry-run (optional)

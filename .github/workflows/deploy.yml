@@ -143,6 +143,7 @@ jobs:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
           AUTH_MODE: ${{ vars.AUTH_MODE }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -164,6 +165,7 @@ jobs:
             exit 1
           fi
 
+          public_base_url="${PUBLIC_BASE_URL:-${AZURE_WEBAPP_URL:-}}"
           image_name="ghcr.io/${GITHUB_REPOSITORY}:${DEPLOY_SHA}"
           persistent_database_url="${DATABASE_URL:-sqlite:////home/site/data/stockmgr.db}"
 
@@ -184,6 +186,7 @@ jobs:
           )
 
           [[ -n "${SECRET_KEY:-}" ]] && app_settings+=("SECRET_KEY=$SECRET_KEY")
+          [[ -n "${public_base_url:-}" ]] && app_settings+=("PUBLIC_BASE_URL=$public_base_url")
           [[ -n "${AUTH_MODE:-}" ]] && app_settings+=("AUTH_MODE=$AUTH_MODE")
           [[ -n "${GOOGLE_CLIENT_ID:-}" ]] && app_settings+=("GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID")
           [[ -n "${GOOGLE_CLIENT_SECRET:-}" ]] && app_settings+=("GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET")
