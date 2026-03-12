@@ -1,3 +1,7 @@
+from sqlmodel import Session
+
+from app.db import engine
+from app.models import User
 from app.schemas import BarcodeLookupResult
 
 
@@ -55,6 +59,65 @@ def test_create_and_list_items(client):
     filtered_location = client.get("/?location_filter=Pantry")
     assert filtered_location.status_code == 200
     assert "Pantry" in filtered_location.text
+
+
+def test_inventory_is_shared_across_authorized_users(client):
+    created = client.post(
+        "/api/items",
+        json={
+            "barcode": "5601212121212",
+            "batch_code": "SHARED-1",
+            "name": "Shared Stock",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "storage_bucket": "",
+            "expiry_date": "2031-06-01",
+            "quantity": 4,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 8,
+        },
+    )
+    assert created.status_code == 200
+    item_id = created.json()["id"]
+
+    with Session(engine) as session:
+        second_user = User(
+            email="second.user@example.com",
+            display_name="Second User",
+            oauth_provider="dev",
+            oauth_subject="second.user@example.com",
+            approval_status="approved",
+            is_admin=False,
+        )
+        session.add(second_user)
+        session.commit()
+
+    client.get("/auth/logout", follow_redirects=False)
+    login = client.post(
+        "/auth/dev-login",
+        data={"email": "second.user@example.com"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 303
+    assert login.headers["location"] == "/"
+
+    listed = client.get("/api/items")
+    assert listed.status_code == 200
+    listed_item = next((item for item in listed.json() if item["id"] == item_id), None)
+    assert listed_item is not None
+    assert listed_item["name"] == "Shared Stock"
+
+    moved = client.post(
+        f"/items/{item_id}/move",
+        data={"direction": "out", "quantity_step": "1", "note": "cross-user adjustment"},
+        follow_redirects=False,
+    )
+    assert moved.status_code == 303
+
+    after_move = client.get("/api/items")
+    moved_item = next((item for item in after_move.json() if item["id"] == item_id), None)
+    assert moved_item is not None
+    assert moved_item["quantity"] == 3
 
 
 def test_required_expiry_date_enforced(client):
