@@ -24,12 +24,23 @@ jobs:
         env:
           GH_REPOSITORY: ${{ github.repository }}
           GH_SHA: ${{ github.sha }}
+          GH_EVENT_NAME: ${{ github.event_name }}
+          GH_REF_NAME: ${{ github.ref_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          target_ref="${GH_REF_NAME:-main}"
           git init .
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GH_REPOSITORY}.git"
-          git fetch --depth=1 origin "$GH_SHA"
+          git fetch --depth=1 origin "$target_ref"
           git checkout --detach FETCH_HEAD
+          deploy_sha="$(git rev-parse HEAD)"
+          echo "DEPLOY_SHA=$deploy_sha" >> "$GITHUB_ENV"
+          echo "Deploying ref $target_ref at commit $deploy_sha"
+
+          if [[ "$GH_EVENT_NAME" == "push" && "$GH_SHA" != "$deploy_sha" ]]; then
+            echo "Refusing stale push deployment run: workflow SHA $GH_SHA is not latest on $target_ref ($deploy_sha)." >&2
+            exit 1
+          fi
 
       - name: Preflight deployment configuration
         env:
@@ -120,17 +131,15 @@ jobs:
       - name: Build and push image (no external action)
         env:
           GH_REPOSITORY: ${{ github.repository }}
-          GH_SHA: ${{ github.sha }}
         run: |
           image_latest="ghcr.io/${GH_REPOSITORY}:latest"
-          image_sha="ghcr.io/${GH_REPOSITORY}:${GH_SHA}"
+          image_sha="ghcr.io/${GH_REPOSITORY}:${DEPLOY_SHA}"
           docker build -t "$image_latest" -t "$image_sha" .
           docker push "$image_latest"
           docker push "$image_sha"
 
       - name: Configure Azure Web App container
         env:
-          IMAGE_NAME: ghcr.io/${{ github.repository }}:${{ github.sha }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
@@ -150,13 +159,18 @@ jobs:
             echo "GHCR_USERNAME and GHCR_TOKEN secrets are required for Azure pull access." >&2
             exit 1
           fi
+          if [[ -z "${DEPLOY_SHA:-}" ]]; then
+            echo "DEPLOY_SHA was not set by checkout step." >&2
+            exit 1
+          fi
 
+          image_name="ghcr.io/${GITHUB_REPOSITORY}:${DEPLOY_SHA}"
           persistent_database_url="${DATABASE_URL:-sqlite:////home/site/data/stockmgr.db}"
 
           az webapp config container set \
             --name "$AZURE_WEBAPP_NAME" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --container-image-name "$IMAGE_NAME" \
+            --container-image-name "$image_name" \
             --container-registry-url "https://ghcr.io" \
             --container-registry-user "$GHCR_USERNAME" \
             --container-registry-password "$GHCR_TOKEN"
@@ -165,6 +179,7 @@ jobs:
             "WEBSITES_PORT=8000"
             "WEBSITES_ENABLE_APP_SERVICE_STORAGE=true"
             "ENVIRONMENT=production"
+            "APP_VERSION=$DEPLOY_SHA"
             "DATABASE_URL=$persistent_database_url"
           )
 
@@ -192,4 +207,4 @@ jobs:
       - name: Smoke test deployed app
         run: |
           sed -i 's/\r$//' scripts/azure/smoke_test.sh
-          bash scripts/azure/smoke_test.sh
+          EXPECTED_APP_VERSION="$DEPLOY_SHA" bash scripts/azure/smoke_test.sh

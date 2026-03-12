@@ -303,13 +303,14 @@ Set **Repository Secrets**:
    - restart app and run `scripts/azure/smoke_test.sh`
 3. Confirm the app opens at:
    - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net`
-   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok"}`
+   - `https://<AZURE_WEBAPP_NAME>.azurewebsites.net/health` returns `{"status":"ok","version":"<commit-sha>"}` after deployment
 
 ### 5) Troubleshooting quick checks
 - OIDC login fails: verify federated credential `subject` exactly matches `repo:ruimcoder/stockmgr:ref:refs/heads/main`.
 - Infra validation fails: check `AZURE_RESOURCE_GROUP`, `AZURE_APPSERVICE_PLAN`, and `AZURE_WEBAPP_NAME` variable values, and confirm both App Service Plan and Web App are Linux (`az appservice plan show --query kind`, `az webapp show --query kind`; `reserved` may be empty on some SKUs).
 - Container pull fails: verify `GHCR_USERNAME`/`GHCR_TOKEN` and package visibility/access.
 - Smoke test fails: inspect `scripts/azure/smoke_test.sh` expectations (`/health`, manifest, Excel API auth behavior).
+- Manual re-run of an old workflow run: this is now blocked for `push` events to prevent stale commit rollback deployments.
 - OAuth buttons missing: ensure `AUTH_MODE` is not `dev` and required OAuth secrets are set in GitHub (`GOOGLE_*`, `MICROSOFT_*`) with correct callback URLs.
 - Data disappears after redeploy: confirm app settings include `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` and `DATABASE_URL` points to `/home/...` (for example `sqlite:////home/site/data/stockmgr.db`), not a path inside the container image filesystem.
 

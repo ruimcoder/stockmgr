@@ -1,6 +1,12 @@
 from app.schemas import BarcodeLookupResult
 
 
+def test_health_includes_status_and_version(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "version": "test-suite"}
+
+
 def test_create_and_list_items(client):
     payload_a = {
         "barcode": "5600000000001",

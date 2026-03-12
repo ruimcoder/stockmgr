@@ -336,7 +336,7 @@ def _product_batches(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "version": settings.app_version}
 
 
 @app.get("/manifest.webmanifest", include_in_schema=False)
