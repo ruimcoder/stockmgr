@@ -11,6 +11,7 @@ from urllib.parse import urlencode, urlsplit, urlunsplit
 import httpx
 from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.starlette_client import OAuth
+from authlib.jose.errors import JoseError
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -578,8 +579,13 @@ async def oauth_callback(
         message_key = _oauth_message_from_error(oauth_error)
         return RedirectResponse(f"/login?m={message_key}", status_code=303)
 
+    token_kwargs: dict[str, Any] = {}
+    if provider == "microsoft":
+        # Microsoft /common may return tenant-specific issuers; accept token claims
+        # without strict issuer matching and rely on subsequent Graph profile lookup.
+        token_kwargs["claims_options"] = {}
     try:
-        token = await client.authorize_access_token(request)
+        token = await client.authorize_access_token(request, **token_kwargs)
     except OAuthError as exc:
         logger.warning(
             "OAuth token exchange failed for provider %s: %s (%s)",
@@ -589,6 +595,9 @@ async def oauth_callback(
         )
         message_key = _oauth_message_from_error(exc.error)
         return RedirectResponse(f"/login?m={message_key}", status_code=303)
+    except JoseError as exc:
+        logger.warning("OAuth ID token validation failed for provider %s: %s", provider, exc)
+        return RedirectResponse("/login?m=oauth-provider-error", status_code=303)
     userinfo = token.get("userinfo")
     if not userinfo:
         if provider == "google":
