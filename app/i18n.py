@@ -90,6 +90,9 @@ TRANSLATIONS = {
         "item.camera_fallback_scanning": "Scanning barcode with compatibility mode...",
         "item.camera_detected": "Barcode detected, searching product...",
         "item.mandatory_note": "Mandatory fields: Type, Name, Storage location, Expiry date.",
+        "item.storage_location_select_existing": "Select an existing location",
+        "item.storage_location_add_new": "Add new location",
+        "item.storage_location_new_label": "New storage location",
         "label.barcode": "Barcode",
         "label.name": "Name",
         "label.type": "Type",
@@ -274,6 +277,9 @@ TRANSLATIONS = {
         "item.mandatory_note": (
             "Campos obrigatorios: Tipo, Nome, Localizacao de armazenamento, Data de validade."
         ),
+        "item.storage_location_select_existing": "Selecionar localizacao existente",
+        "item.storage_location_add_new": "Adicionar nova localizacao",
+        "item.storage_location_new_label": "Nova localizacao de armazenamento",
         "label.barcode": "Codigo de barras",
         "label.name": "Nome",
         "label.type": "Tipo",

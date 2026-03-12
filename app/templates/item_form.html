@@ -83,7 +83,38 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">{{ t("label.storage_location") }}</label>
-      <input class="form-control" name="storage_location" value="{{ draft.storage_location or '' }}" required />
+      <select
+        class="form-select"
+        id="storage-location-select"
+        name="storage_location"
+        data-new-value="__new__"
+        required
+      >
+        <option value="" {% if not storage_location_selection %}selected{% endif %}>
+          {{ t("item.storage_location_select_existing") }}
+        </option>
+        {% for location in storage_location_options %}
+        <option value="{{ location }}"{% if storage_location_selection == location %} selected{% endif %}>
+          {{ location }}
+        </option>
+        {% endfor %}
+        <option value="__new__"{% if storage_location_selection == "__new__" %} selected{% endif %}>
+          {{ t("item.storage_location_add_new") }}
+        </option>
+      </select>
+    </div>
+    <div
+      class="col-md-4{% if storage_location_selection != '__new__' %} d-none{% endif %}"
+      id="storage-location-new-wrapper"
+    >
+      <label class="form-label">{{ t("item.storage_location_new_label") }}</label>
+      <input
+        class="form-control"
+        id="storage-location-new-input"
+        name="storage_location_new"
+        value="{{ storage_location_new_value or '' }}"
+        {% if storage_location_selection == "__new__" %}required{% endif %}
+      />
     </div>
     <div class="col-md-4">
       <label class="form-label">{{ t("label.storage_bucket") }}</label>
@@ -194,5 +225,23 @@
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 <script src="{{ url_for('static', path='barcode-camera.js') }}"></script>
 {% endif %}
+<script>
+  (() => {
+    const select = document.getElementById("storage-location-select");
+    const newInputWrapper = document.getElementById("storage-location-new-wrapper");
+    const newInput = document.getElementById("storage-location-new-input");
+    if (!select || !newInputWrapper || !newInput) {
+      return;
+    }
+    const newValue = select.dataset.newValue || "__new__";
+    const syncStorageLocationMode = () => {
+      const isNewLocation = select.value === newValue;
+      newInputWrapper.classList.toggle("d-none", !isNewLocation);
+      newInput.required = isNewLocation;
+    };
+    select.addEventListener("change", syncStorageLocationMode);
+    syncStorageLocationMode();
+  })();
+</script>
 {% endblock %}
 

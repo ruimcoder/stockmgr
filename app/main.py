@@ -247,6 +247,9 @@ def _upsert_oauth_user(
 
 
 def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
+    selected_storage_location = form.get("storage_location")
+    if selected_storage_location == "__new__":
+        form["storage_location"] = form.get("storage_location_new")
     payload: dict[str, Any] = {}
     for key in (
         "barcode",
@@ -332,6 +335,40 @@ def _product_batches(
         .order_by(StockItem.expiry_date, StockItem.storage_location, StockItem.storage_bucket)
     )
     return session.exec(batch_query).all()
+
+
+def _storage_location_options(session: Session, *, user_id: int) -> list[str]:
+    rows = session.exec(
+        select(StockItem.storage_location)
+        .where(StockItem.user_id == user_id, StockItem.storage_location != "")
+        .distinct()
+        .order_by(func.lower(StockItem.storage_location), StockItem.storage_location)
+    ).all()
+    return [row for row in rows if row]
+
+
+def _storage_location_field_context(
+    session: Session, *, user_id: int, selected_location: str | None
+) -> dict[str, Any]:
+    location_options = _storage_location_options(session, user_id=user_id)
+    selected = (selected_location or "").strip()
+    if selected and selected in location_options:
+        return {
+            "storage_location_options": location_options,
+            "storage_location_selection": selected,
+            "storage_location_new_value": "",
+        }
+    if selected:
+        return {
+            "storage_location_options": location_options,
+            "storage_location_selection": "__new__",
+            "storage_location_new_value": selected,
+        }
+    return {
+        "storage_location_options": location_options,
+        "storage_location_selection": "",
+        "storage_location_new_value": "",
+    }
 
 
 @app.get("/health")
@@ -893,6 +930,9 @@ def item_new(request: Request, session: Session = Depends(get_session)):
     prefill_item_type = request.query_params.get("item_type", "").strip()
     prefill_location = request.query_params.get("storage_location", "").strip()
     prefill_bucket = request.query_params.get("storage_bucket", "").strip()
+    location_context = _storage_location_field_context(
+        session, user_id=maybe_user.id, selected_location=prefill_location
+    )
     return _render(
         request,
         "item_form.html",
@@ -910,6 +950,7 @@ def item_new(request: Request, session: Session = Depends(get_session)):
                 "target_unidoses_location": 0,
             },
             "lookup": None,
+            **location_context,
         },
     )
 
@@ -939,6 +980,9 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
         )
         .order_by(StockMovement.created_at.desc())
     ).all()
+    location_context = _storage_location_field_context(
+        session, user_id=user.id, selected_location=item.storage_location
+    )
     return _render(
         request,
         "item_form.html",
@@ -949,6 +993,7 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
             "lookup": None,
             "related_batches": related_batches,
             "movement_rows": movement_rows,
+            **location_context,
         },
     )
 
@@ -979,10 +1024,21 @@ async def lookup_for_form(
                 "target_unidoses_location": 0,
             }
         )
+    location_context = _storage_location_field_context(
+        session,
+        user_id=maybe_user.id,
+        selected_location=str(draft.get("storage_location") or ""),
+    )
     return _render(
         request,
         "item_form.html",
-        {"user": maybe_user, "mode": "create", "draft": draft, "lookup": result},
+        {
+            "user": maybe_user,
+            "mode": "create",
+            "draft": draft,
+            "lookup": result,
+            **location_context,
+        },
     )
 
 

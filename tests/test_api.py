@@ -304,6 +304,58 @@ def test_item_edit_page_shows_related_batches_and_log(client):
     assert "LOT-2" in edit_page.text
     assert "Stock movement log" in edit_page.text
     assert "edit-context-note" in edit_page.text
+    assert 'id="storage-location-select"' in edit_page.text
+    assert '<option value="LocA" selected>' in edit_page.text
+    assert '<option value="LocB">' in edit_page.text
+    assert 'value="__new__"' in edit_page.text
+
+
+def test_item_edit_allows_selecting_add_new_storage_location(client):
+    created = client.post(
+        "/api/items",
+        json={
+            "barcode": "5607777777777",
+            "batch_code": "LOT-N1",
+            "name": "Oats",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "storage_bucket": "A2",
+            "expiry_date": "2031-03-01",
+            "quantity": 6,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 10,
+        },
+    )
+    assert created.status_code == 200
+    item = created.json()
+
+    update_response = client.post(
+        f"/items/{item['id']}/update",
+        data={
+            "barcode": item["barcode"],
+            "batch_code": item["batch_code"],
+            "name": item["name"],
+            "item_type": item["item_type"],
+            "storage_location": "__new__",
+            "storage_location_new": "Basement Shelf",
+            "storage_bucket": item["storage_bucket"],
+            "expiry_date": item["expiry_date"],
+            "quantity": str(item["quantity"]),
+            "unidose_per_pack": str(item["unidose_per_pack"]),
+            "target_unidoses_location": str(item["target_unidoses_location"]),
+            "temp_min_c": "",
+            "temp_max_c": "",
+            "humidity_min_pct": "",
+            "humidity_max_pct": "",
+            "renewal_date": "",
+        },
+        follow_redirects=False,
+    )
+    assert update_response.status_code == 303
+
+    items = client.get("/api/items")
+    assert items.status_code == 200
+    assert items.json()[0]["storage_location"] == "Basement Shelf"
 
 
 def test_new_item_page_prefills_product_and_location_from_query(client):
@@ -336,7 +388,8 @@ def test_new_item_page_prefills_product_and_location_from_query(client):
         "/items/new?name=Olive%20Oil&item_type=food&barcode=5605555555555&storage_location=Kitchen"
     )
     assert prefilled_for_batch.status_code == 200
-    assert 'name="storage_location" value="Kitchen"' in prefilled_for_batch.text
+    assert 'id="storage-location-select"' in prefilled_for_batch.text
+    assert '<option value="Kitchen" selected>' in prefilled_for_batch.text
 
 
 def test_excel_api_requires_valid_key_and_supports_read(client):
