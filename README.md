@@ -8,6 +8,7 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Inventory fields: item name/type, location, bucket (optional), batch code (optional), expiry date, temperature range, humidity range, renewal date, barcode.
 - Supports multiple batches of the same product (same product/barcode with different batch codes and expiry dates).
 - Supports stock quantity per batch, including increment/decrement operations with optional notes and movement logs.
+- Inventory data is shared across all approved users (not user-isolated), so authorized users work on the same stock records.
 - Product detail page now includes a product summary section and an edit shortcut that opens the existing item edit page with the same product's batches and movement log context.
 - Product detail page includes quick actions to add a new storage location for a product, or add a new batch for an existing product/location with prefilled item creation form data.
 - Supports unidose planning fields (`unidose_per_pack`, `target_unidoses_location`) and automatic unidoses delta calculations per location.
@@ -95,7 +96,7 @@ EXCEL_API_USER_EMAIL=
 
 ## Excel datasource API (read + write)
 - Authentication: set `X-Excel-Api-Key` header (or `X-API-Key`) to `EXCEL_API_KEY`.
-- User scope: by default uses `EXCEL_API_USER_EMAIL`; can override per request with `X-Excel-User-Email`.
+- Request identity: by default uses `EXCEL_API_USER_EMAIL`; can override per request with `X-Excel-User-Email`.
 - Endpoints:
   - `GET /api/excel/stocks` → list stock rows (read datasource).
   - `PUT /api/excel/stocks/{id}` → update a row.

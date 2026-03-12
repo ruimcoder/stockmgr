@@ -290,12 +290,9 @@ def _to_read_model(item: StockItem) -> ItemRead:
     return ItemRead.model_validate(item.model_dump())
 
 
-def _excel_match_existing_item(
-    session: Session, *, user_id: int, row: ExcelStockUpsertRow
-) -> StockItem | None:
+def _excel_match_existing_item(session: Session, *, row: ExcelStockUpsertRow) -> StockItem | None:
     return session.exec(
         select(StockItem).where(
-            StockItem.user_id == user_id,
             StockItem.name == row.name,
             StockItem.item_type == row.item_type,
             StockItem.storage_location == row.storage_location,
@@ -325,14 +322,12 @@ def _looks_like_barcode(value: str) -> bool:
 def _product_batches(
     session: Session,
     *,
-    user_id: int,
     item_type: str,
     product_name: str,
 ) -> list[StockItem]:
     batch_query = (
         select(StockItem)
         .where(
-            StockItem.user_id == user_id,
             StockItem.item_type == item_type,
             StockItem.name == product_name,
         )
@@ -341,10 +336,10 @@ def _product_batches(
     return session.exec(batch_query).all()
 
 
-def _storage_location_options(session: Session, *, user_id: int) -> list[str]:
+def _storage_location_options(session: Session) -> list[str]:
     rows = session.exec(
         select(StockItem.storage_location)
-        .where(StockItem.user_id == user_id, StockItem.storage_location != "")
+        .where(StockItem.storage_location != "")
         .distinct()
         .order_by(func.lower(StockItem.storage_location), StockItem.storage_location)
     ).all()
@@ -352,9 +347,9 @@ def _storage_location_options(session: Session, *, user_id: int) -> list[str]:
 
 
 def _storage_location_field_context(
-    session: Session, *, user_id: int, selected_location: str | None
+    session: Session, *, selected_location: str | None
 ) -> dict[str, Any]:
-    location_options = _storage_location_options(session, user_id=user_id)
+    location_options = _storage_location_options(session)
     selected = (selected_location or "").strip()
     if selected and selected in location_options:
         return {
@@ -658,7 +653,7 @@ def index(request: Request, session: Session = Depends(get_session)):
     user = maybe_user
     bucket_filter = request.query_params.get("bucket_filter", "all")
     location_filter = request.query_params.get("location_filter", "").strip()
-    statement = select(StockItem).where(StockItem.user_id == user.id)
+    statement = select(StockItem)
     if bucket_filter == "assigned":
         statement = statement.where(StockItem.storage_bucket != "")
     elif bucket_filter == "unassigned":
@@ -669,7 +664,6 @@ def index(request: Request, session: Session = Depends(get_session)):
     items = session.exec(statement).all()
     locations = session.exec(
         select(StockItem.storage_location)
-        .where(StockItem.user_id == user.id)
         .distinct()
         .order_by(StockItem.storage_location)
     ).all()
@@ -696,7 +690,6 @@ def search_item_from_home(
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
-    user = maybe_user
     search_value = query.strip()
     if not search_value:
         return RedirectResponse("/?m=search-empty", status_code=303)
@@ -708,7 +701,6 @@ def search_item_from_home(
         barcode_match = session.exec(
             select(StockItem)
             .where(
-                StockItem.user_id == user.id,
                 StockItem.barcode == barcode_value,
                 StockItem.quantity > 0,
             )
@@ -728,7 +720,6 @@ def search_item_from_home(
     name_match = session.exec(
         select(StockItem)
         .where(
-            StockItem.user_id == user.id,
             func.lower(StockItem.name) == search_value.lower(),
             StockItem.quantity > 0,
         )
@@ -738,7 +729,6 @@ def search_item_from_home(
         name_match = session.exec(
             select(StockItem)
             .where(
-                StockItem.user_id == user.id,
                 StockItem.name.like(f"%{search_value}%"),
                 StockItem.quantity > 0,
             )
@@ -770,7 +760,6 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.item_type,
             func.sum(StockItem.quantity).label("quantity"),
         )
-        .where(StockItem.user_id == user.id)
         .group_by(StockItem.name, StockItem.item_type)
         .order_by(StockItem.name)
     )
@@ -783,7 +772,6 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
         )
-        .where(StockItem.user_id == user.id)
         .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
         .order_by(StockItem.name, StockItem.storage_location)
     )
@@ -796,7 +784,6 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             func.sum(StockItem.quantity).label("quantity"),
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
         )
-        .where(StockItem.user_id == user.id)
         .group_by(
             StockItem.name,
             StockItem.item_type,
@@ -833,7 +820,6 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
             func.max(StockItem.unidose_per_pack).label("unidose_per_pack"),
         )
-        .where(StockItem.user_id == user.id)
         .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
         .order_by(StockItem.name, StockItem.storage_location)
     ).all()
@@ -886,7 +872,6 @@ def renewal_plan(
     statement = (
         select(StockItem)
         .where(
-            StockItem.user_id == user.id,
             StockItem.renewal_date.is_not(None),
             StockItem.renewal_date >= start,
             StockItem.renewal_date <= end,
@@ -919,7 +904,6 @@ def product_detail(
 
     batches = _product_batches(
         session,
-        user_id=user.id,
         item_type=item_type,
         product_name=product_name,
     )
@@ -946,7 +930,6 @@ def product_detail(
         select(StockMovement, StockItem)
         .join(StockItem, StockItem.id == StockMovement.stock_item_id)
         .where(
-            StockItem.user_id == user.id,
             StockItem.item_type == item_type,
             StockItem.name == product_name,
         )
@@ -980,9 +963,7 @@ def item_new(request: Request, session: Session = Depends(get_session)):
     prefill_item_type = request.query_params.get("item_type", "").strip()
     prefill_location = request.query_params.get("storage_location", "").strip()
     prefill_bucket = request.query_params.get("storage_bucket", "").strip()
-    location_context = _storage_location_field_context(
-        session, user_id=maybe_user.id, selected_location=prefill_location
-    )
+    location_context = _storage_location_field_context(session, selected_location=prefill_location)
     return _render(
         request,
         "item_form.html",
@@ -1012,11 +993,10 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
         return maybe_user
     user = maybe_user
     item = session.get(StockItem, item_id)
-    if not item or item.user_id != user.id:
+    if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
     related_batches = _product_batches(
         session,
-        user_id=user.id,
         item_type=item.item_type,
         product_name=item.name,
     )
@@ -1024,14 +1004,13 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
         select(StockMovement, StockItem)
         .join(StockItem, StockItem.id == StockMovement.stock_item_id)
         .where(
-            StockItem.user_id == user.id,
             StockItem.item_type == item.item_type,
             StockItem.name == item.name,
         )
         .order_by(StockMovement.created_at.desc())
     ).all()
     location_context = _storage_location_field_context(
-        session, user_id=user.id, selected_location=item.storage_location
+        session, selected_location=item.storage_location
     )
     return _render(
         request,
@@ -1076,7 +1055,6 @@ async def lookup_for_form(
         )
     location_context = _storage_location_field_context(
         session,
-        user_id=maybe_user.id,
         selected_location=str(draft.get("storage_location") or ""),
     )
     return _render(
@@ -1135,7 +1113,7 @@ async def item_update(item_id: int, request: Request, session: Session = Depends
         return maybe_user
     user = maybe_user
     item = session.get(StockItem, item_id)
-    if not item or item.user_id != user.id:
+    if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
 
     previous_quantity = item.quantity
@@ -1187,7 +1165,7 @@ def adjust_stock_quantity(
         return maybe_user
     user = maybe_user
     item = session.get(StockItem, item_id)
-    if not item or item.user_id != user.id:
+    if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
 
     step = max(1, int(quantity_step))
@@ -1220,9 +1198,8 @@ def item_delete(item_id: int, request: Request, session: Session = Depends(get_s
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
-    user = maybe_user
     item = session.get(StockItem, item_id)
-    if not item or item.user_id != user.id:
+    if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
     session.delete(item)
     session.commit()
@@ -1331,8 +1308,8 @@ def api_list_items(
     session: Session = Depends(get_session),
     user: User = Depends(_require_api_user),
 ):
-    _ = request
-    items = session.exec(select(StockItem).where(StockItem.user_id == user.id)).all()
+    _ = request, user
+    items = session.exec(select(StockItem)).all()
     return [_to_read_model(item) for item in items]
 
 
@@ -1369,10 +1346,9 @@ def api_excel_list_stocks(
     session: Session = Depends(get_session),
     user: User = Depends(_require_excel_api_user),
 ):
-    _ = request
+    _ = request, user
     items = session.exec(
         select(StockItem)
-        .where(StockItem.user_id == user.id)
         .order_by(StockItem.name, StockItem.storage_location, StockItem.expiry_date)
     ).all()
     return [_to_read_model(item) for item in items]
@@ -1386,7 +1362,7 @@ async def api_excel_update_stock(
     user: User = Depends(_require_excel_api_user),
 ):
     item = session.get(StockItem, item_id)
-    if not item or item.user_id != user.id:
+    if not item:
         raise HTTPException(status_code=404, detail="Stock item not found.")
 
     previous_quantity = item.quantity
@@ -1426,13 +1402,13 @@ async def api_excel_upsert_stocks(
         item = None
         if row.id is not None:
             item = session.get(StockItem, row.id)
-            if not item or item.user_id != user.id:
+            if not item:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Stock item not found for id={row.id}.",
                 )
         else:
-            item = _excel_match_existing_item(session, user_id=user.id, row=row)
+            item = _excel_match_existing_item(session, row=row)
 
         if item:
             previous_quantity = item.quantity
