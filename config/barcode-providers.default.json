@@ -8,12 +8,14 @@
     "chains": {
       "food": [
         "open_food_facts",
+        "continente_pt",
         "usda_fooddata_central",
         "upcitemdb",
         "go_upc"
       ],
       "nonFood": [
         "open_products_facts",
+        "continente_pt",
         "upcitemdb",
         "go_upc",
         "gs1_us"
@@ -26,6 +28,7 @@
       "unknown": [
         "open_products_facts",
         "open_food_facts",
+        "continente_pt",
         "upcitemdb",
         "go_upc"
       ]
@@ -224,11 +227,11 @@
         "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
       },
       "capabilities": {
-        "supportsBarcodeLookup": false,
+        "supportsBarcodeLookup": true,
         "supportsSearch": true,
         "supportsBulk": false
       },
-      "notes": "Optional connector. Enable only after explicit legal/compliance review."
+      "notes": "Optional connector with barcode search scraping. Enable only after explicit legal/compliance review."
     },
     "auchan_pt": {
       "displayName": "Auchan Portugal Connector",
