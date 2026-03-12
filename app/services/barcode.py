@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import html
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus, urljoin
 
 import httpx
 from jsonschema import validate
@@ -164,7 +167,15 @@ class BarcodeLookupService:
             return await self._lookup_usda(provider_cfg, barcode, timeout, user_agent, api_key)
         if provider == "upcitemdb":
             return await self._lookup_upcitemdb(provider_cfg, barcode, timeout, user_agent, api_key)
+        if provider == "continente_pt":
+            return await self._lookup_continente(provider_cfg, barcode, timeout, user_agent)
         return None
+
+    async def _fetch_text(self, url: str, *, timeout: float, user_agent: str) -> str:
+        async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": user_agent}) as client:
+            response = await client.get(url)
+        response.raise_for_status()
+        return response.text
 
     async def _lookup_open_food_facts(
         self, provider_cfg: dict[str, Any], barcode: str, timeout: float, user_agent: str
@@ -309,3 +320,179 @@ class BarcodeLookupService:
             "size": row.get("size"),
             "_countryMatchPT": False,
         }
+
+    async def _lookup_continente(
+        self,
+        provider_cfg: dict[str, Any],
+        barcode: str,
+        timeout: float,
+        user_agent: str,
+    ) -> dict[str, Any] | None:
+        base_url = provider_cfg["request"]["baseUrl"].rstrip("/")
+        search_url = f"{base_url}/pesquisa/?q={quote_plus(barcode)}"
+        search_html = await self._fetch_text(search_url, timeout=timeout, user_agent=user_agent)
+        product_url = self._extract_continente_product_url(search_html)
+        if not product_url:
+            return None
+        product_url = urljoin(f"{base_url}/", product_url)
+        product_html = await self._fetch_text(product_url, timeout=timeout, user_agent=user_agent)
+        return self._parse_continente_product_page(
+            product_html=product_html,
+            barcode=barcode,
+            product_url=product_url,
+        )
+
+    def _extract_continente_product_url(self, search_html: str) -> str | None:
+        # Search results render product cards with `ct-pdp-link` wrappers around anchors.
+        card_link_match = re.search(
+            r"<div[^>]*ct-pdp-link[^>]*>\s*<a[^>]*href=\"([^\"]+)\"",
+            search_html,
+            re.IGNORECASE,
+        )
+        if card_link_match:
+            return html.unescape(card_link_match.group(1).strip())
+
+        fallback_match = re.search(
+            r"href=\"([^\"]*?/produto/[^\"]+?\.html)\"",
+            search_html,
+            re.IGNORECASE,
+        )
+        if not fallback_match:
+            return None
+        return html.unescape(fallback_match.group(1).strip())
+
+    def _parse_continente_product_page(
+        self,
+        *,
+        product_html: str,
+        barcode: str,
+        product_url: str,
+    ) -> dict[str, Any] | None:
+        product_json = self._extract_continente_product_json_ld(product_html)
+        if not product_json:
+            return None
+
+        name = self._safe_text(product_json.get("name"))
+        if not name:
+            return None
+        brand = self._safe_text(self._extract_continente_brand(product_json, product_html))
+        category = self._safe_text(self._extract_continente_category(product_html))
+        size = self._safe_text(self._extract_continente_size(product_html))
+        image_url = self._safe_text(self._extract_continente_image(product_json))
+        description = self._safe_text(product_json.get("description"))
+
+        return {
+            "barcode": barcode,
+            "name": name,
+            "brand": brand,
+            "category": category,
+            "imageUrl": image_url,
+            "size": size,
+            "ingredients": description,
+            "sourceUrl": product_url,
+            "_countryMatchPT": True,
+        }
+
+    def _extract_continente_product_json_ld(self, page_html: str) -> dict[str, Any] | None:
+        script_matches = re.finditer(
+            r"<script\s+type=\"application/ld\+json\">(.*?)</script>",
+            page_html,
+            re.IGNORECASE | re.DOTALL,
+        )
+        for match in script_matches:
+            raw_payload = match.group(1).strip()
+            if not raw_payload:
+                continue
+            try:
+                payload = json.loads(raw_payload)
+            except json.JSONDecodeError:
+                continue
+            product = self._resolve_json_ld_product(payload)
+            if product:
+                return product
+        return None
+
+    def _resolve_json_ld_product(self, payload: Any) -> dict[str, Any] | None:
+        if isinstance(payload, dict):
+            payload_type = str(payload.get("@type", "")).lower()
+            if payload_type == "product":
+                return payload
+            graph = payload.get("@graph")
+            if isinstance(graph, list):
+                for item in graph:
+                    resolved = self._resolve_json_ld_product(item)
+                    if resolved:
+                        return resolved
+        if isinstance(payload, list):
+            for item in payload:
+                resolved = self._resolve_json_ld_product(item)
+                if resolved:
+                    return resolved
+        return None
+
+    def _extract_continente_image(self, product_json: dict[str, Any]) -> str | None:
+        image_value = product_json.get("image")
+        if isinstance(image_value, str):
+            return image_value
+        if isinstance(image_value, list):
+            for item in image_value:
+                if isinstance(item, str) and item.strip():
+                    return item
+        return None
+
+    def _extract_continente_brand(
+        self,
+        product_json: dict[str, Any],
+        product_html: str,
+    ) -> str | None:
+        brand_value = product_json.get("brand")
+        if isinstance(brand_value, dict):
+            brand_name = brand_value.get("name")
+            if isinstance(brand_name, str) and brand_name.strip():
+                return brand_name
+        if isinstance(brand_value, str) and brand_value.strip():
+            return brand_value
+
+        data_layer_match = re.search(
+            r'"brand&quot;:&quot;([^"]+?)&quot;',
+            product_html,
+            re.IGNORECASE,
+        )
+        if data_layer_match:
+            return html.unescape(data_layer_match.group(1))
+        return None
+
+    def _extract_continente_category(self, product_html: str) -> str | None:
+        for key in ("item_category3", "item_category2", "item_category"):
+            category_match = re.search(
+                rf'"{key}&quot;:&quot;([^"]+?)&quot;',
+                product_html,
+                re.IGNORECASE,
+            )
+            if category_match:
+                return html.unescape(category_match.group(1))
+        return None
+
+    def _extract_continente_size(self, product_html: str) -> str | None:
+        meta_match = re.search(
+            r'<meta\s+name="description"\s+content="([^"]+)"',
+            product_html,
+            re.IGNORECASE,
+        )
+        if not meta_match:
+            return None
+        description = html.unescape(meta_match.group(1))
+        size_match = re.search(
+            r"\b\d+(?:[.,]\d+)?\s?(?:kg|g|mg|l|ml|cl|un)\b",
+            description,
+            re.IGNORECASE,
+        )
+        if not size_match:
+            return None
+        return size_match.group(0)
+
+    def _safe_text(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
