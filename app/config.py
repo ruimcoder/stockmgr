@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     app_name: str = "stockmgr"
     app_version: str = "dev"
+    public_base_url: str | None = None
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "sqlite:///./stockmgr.db"
     secret_key: str = "change-me-for-production"

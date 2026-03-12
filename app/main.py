@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
@@ -462,8 +462,56 @@ async def oauth_start(request: Request, provider: str):
     client = oauth.create_client(provider)
     if not client:
         raise HTTPException(status_code=404, detail=f"OAuth provider '{provider}' is unavailable.")
-    redirect_uri = request.url_for("oauth_callback", provider=provider)
-    return await client.authorize_redirect(request, str(redirect_uri))
+    redirect_uri = _oauth_callback_redirect_uri(request, provider)
+    return await client.authorize_redirect(request, redirect_uri)
+
+
+def _oauth_callback_redirect_uri(request: Request, provider: str) -> str:
+    callback_uri = str(request.url_for("oauth_callback", provider=provider))
+    return _build_oauth_redirect_uri(
+        callback_uri=callback_uri,
+        public_base_url=settings.public_base_url,
+        forwarded_proto=request.headers.get("x-forwarded-proto"),
+    )
+
+
+def _build_oauth_redirect_uri(
+    callback_uri: str,
+    public_base_url: str | None,
+    forwarded_proto: str | None,
+) -> str:
+    parsed_callback = urlsplit(callback_uri)
+    configured_base = (public_base_url or "").strip()
+    if configured_base:
+        if "://" not in configured_base:
+            configured_base = f"https://{configured_base}"
+        parsed_base = urlsplit(configured_base)
+        if parsed_base.scheme and parsed_base.netloc:
+            base_path = parsed_base.path.rstrip("/")
+            callback_path = parsed_callback.path
+            combined_path = f"{base_path}{callback_path}" if base_path else callback_path
+            return urlunsplit(
+                (
+                    parsed_base.scheme,
+                    parsed_base.netloc,
+                    combined_path,
+                    parsed_callback.query,
+                    parsed_callback.fragment,
+                )
+            )
+
+    normalized_forwarded_proto = (forwarded_proto or "").split(",")[0].strip().lower()
+    if normalized_forwarded_proto == "https" and parsed_callback.scheme != "https":
+        return urlunsplit(
+            (
+                "https",
+                parsed_callback.netloc,
+                parsed_callback.path,
+                parsed_callback.query,
+                parsed_callback.fragment,
+            )
+        )
+    return callback_uri
 
 
 @app.get("/auth/{provider}/callback")
