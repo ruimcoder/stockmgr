@@ -29,10 +29,15 @@ Build a web application to manage SHTF stock items, including shelf-life trackin
 5. Support file-based imports:
    - Excel import
    - CSV import
+6. Support a secure Telegram operations channel for owner communication:
+   - Accept Telegram inputs only from the configured owner identity.
+   - Validate webhook origin using a shared secret token.
+   - Send operation outputs/status summaries back through Telegram.
 
 ## Configuration requirements
 - Calendar provider must be selected through application configuration.
 - Barcode product data source must be configurable to support future provider changes.
+- Telegram access control (allowed user/chat IDs and webhook secret) must be configurable.
 - Provider configuration contract must be defined by `config/barcode-providers.schema.json`.
 - Default provider runtime settings must live in `config/barcode-providers.default.json`.
 

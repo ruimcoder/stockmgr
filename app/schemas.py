@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ItemBase(BaseModel):
@@ -83,3 +83,27 @@ class ImportResult(BaseModel):
     imported: int
     failed: int
     errors: list[str]
+
+
+class TelegramUser(BaseModel):
+    id: int
+    username: str | None = None
+
+
+class TelegramChat(BaseModel):
+    id: int
+    type: str | None = None
+
+
+class TelegramMessage(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_user: TelegramUser = Field(alias="from")
+    chat: TelegramChat
+    text: str | None = None
+
+
+class TelegramUpdate(BaseModel):
+    update_id: int
+    message: TelegramMessage | None = None
+    edited_message: TelegramMessage | None = None
