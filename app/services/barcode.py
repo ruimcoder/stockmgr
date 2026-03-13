@@ -208,6 +208,7 @@ class BarcodeLookupService:
             "size": product.get("quantity"),
             "ingredients": product.get("ingredients_text"),
             "nutrition": product.get("nutriments"),
+            "foodGroupsTags": product.get("food_groups_tags") or product.get("pnns_groups_2_tags"),
             "_countryMatchPT": any("portugal" in str(c).lower() for c in countries),
         }
 

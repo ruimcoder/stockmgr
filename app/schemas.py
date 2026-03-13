@@ -23,6 +23,7 @@ class ItemBase(BaseModel):
     comment: str | None = None
     image_url: str | None = None
     nutriscore: str | None = None
+    food_group: str | None = None
 
     @field_validator("name", "item_type", "storage_location")
     @classmethod

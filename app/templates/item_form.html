@@ -59,6 +59,7 @@
   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
   <input type="hidden" name="image_url" value="{{ draft.image_url or '' }}" />
   <input type="hidden" name="nutriscore" value="{{ draft.nutriscore or '' }}" />
+  <input type="hidden" name="food_group" id="food-group-hidden" value="{{ draft.food_group or '' }}" />
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label">{{ t("label.barcode") }}</label>
@@ -161,6 +162,22 @@
     <div class="col-12">
       <label class="form-label">{{ t("label.comment") }}</label>
       <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">{{ t("label.food_group") }}</label>
+      <select class="form-select" id="food-group-select" name="food_group">
+        <option value="">—</option>
+        {% for group in food_groups %}
+        <option
+          value="{{ group.key }}"
+          data-color="{{ group.color }}"
+          {% if draft.food_group == group.key %}selected{% endif %}
+        >
+          {% if lang == "pt" %}{{ group.name_pt }}{% else %}{{ group.name_en }}{% endif %}
+          ({{ group.target_pct }}%)
+        </option>
+        {% endfor %}
+      </select>
     </div>
   </div>
   <div class="d-flex gap-2 mt-4">
