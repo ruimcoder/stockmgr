@@ -27,18 +27,18 @@
           <td>{{ row.oauth_provider }}</td>
           <td>{{ row.approval_status }}</td>
           <td>{% if row.is_admin %}admin{% else %}user{% endif %}</td>
-          <td class="d-flex gap-1 flex-wrap">
-            <form method="post" action="/admin/users/{{ row.id }}/approve">
+          <td class="text-nowrap">
+            <form method="post" action="/admin/users/{{ row.id }}/approve" class="d-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-              <button class="btn btn-sm btn-outline-success" type="submit">{{ t("admin.approve") }}</button>
+              <button class="btn btn-sm btn-outline-success" type="submit" title="{{ t('admin.approve') }}"><i class="bi bi-check-circle"></i></button>
             </form>
-            <form method="post" action="/admin/users/{{ row.id }}/reject">
+            <form method="post" action="/admin/users/{{ row.id }}/reject" class="d-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-              <button class="btn btn-sm btn-outline-danger" type="submit">{{ t("admin.reject") }}</button>
+              <button class="btn btn-sm btn-outline-danger" type="submit" title="{{ t('admin.reject') }}"><i class="bi bi-x-circle"></i></button>
             </form>
-            <form method="post" action="/admin/users/{{ row.id }}/toggle-admin">
+            <form method="post" action="/admin/users/{{ row.id }}/toggle-admin" class="d-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-              <button class="btn btn-sm btn-outline-warning" type="submit">{{ t("admin.toggle_admin") }}</button>
+              <button class="btn btn-sm btn-outline-warning" type="submit" title="{{ t('admin.toggle_admin') }}"><i class="bi bi-person-gear"></i></button>
             </form>
           </td>
         </tr>
