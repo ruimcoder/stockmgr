@@ -96,50 +96,107 @@
 
 <div class="card mb-3">
   <div class="card-header">{{ t("product.batches") }}</div>
-  <div class="table-responsive">
-    <table class="table table-striped mb-0" data-enhanced-table>
-      <thead>
-        <tr>
-          <th>{{ t("table.batch") }}</th>
-          <th>{{ t("table.barcode") }}</th>
-          <th>{{ t("table.location") }}</th>
-          <th>{{ t("table.bucket") }}</th>
-          <th>{{ t("table.expiry") }}</th>
-          <th>{{ t("table.quantity") }}</th>
-          <th>{{ t("table.unidose_per_pack") }}</th>
-          <th>{{ t("table.total_unidoses") }}</th>
-          <th>{{ t("table.target_unidoses") }}</th>
-          <th>{{ t("table.delta_unidoses") }}</th>
-          <th data-sortable="false" data-filterable="false">{{ t("product.adjust") }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for batch in batches %}
-        <tr>
-          <td>{{ batch.batch_code or "-" }}</td>
-          <td>{{ batch.barcode or "-" }}</td>
-          <td>{{ batch.storage_location }}</td>
-          <td>{{ batch.storage_bucket or "-" }}</td>
-          <td>{{ batch.expiry_date }}</td>
-          <td><strong>{{ batch.quantity }}</strong></td>
-          <td>{{ batch.unidose_per_pack }}</td>
-          <td>{{ batch.quantity * batch.unidose_per_pack }}</td>
-          <td>{{ batch.target_unidoses_location }}</td>
-          <td>{{ batch.target_unidoses_location - (batch.quantity * batch.unidose_per_pack) }}</td>
-          <td>
-            <form method="post" action="/items/{{ batch.id }}/move" class="d-flex gap-1 flex-wrap">
-              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-              <input type="number" min="1" step="1" name="quantity_step" value="1" class="form-control form-control-sm qty-field" />
-              <input type="text" name="note" placeholder="{{ t('product.note_placeholder') }}" class="form-control form-control-sm note-field" />
-              <button class="btn btn-sm btn-outline-success" name="direction" value="in" type="submit">+ {{ t("product.add") }}</button>
-              <button class="btn btn-sm btn-outline-danger" name="direction" value="out" type="submit">- {{ t("product.remove") }}</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% for loc in location_options %}
+  {% set loc_batches = batches | selectattr("storage_location", "equalto", loc) | list %}
+  {% set loc_plan = location_plans.get(loc) %}
+  <div class="card-body pb-0">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <span class="fw-semibold"><i class="bi bi-geo-alt-fill text-secondary"></i> {{ loc }}</span>
+      {% if loc_plan %}
+      <span class="badge bg-info text-dark small" title="{{ t('product.location_plan_info') }}">
+        <i class="bi bi-calendar2-check"></i>
+        {{ loc_plan.participants }}p × {{ loc_plan.days }}d = {{ loc_plan.total_meal_occasions }} {{ t("location_plan.total_occasions") }}
+      </span>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mb-2">
+        <thead class="table-light">
+          <tr>
+            <th>{{ t("table.batch") }}</th>
+            <th>{{ t("table.bucket") }}</th>
+            <th>{{ t("table.expiry") }}</th>
+            <th>{{ t("table.quantity") }}</th>
+            <th>{{ t("table.unidose_per_pack") }}</th>
+            <th>{{ t("table.total_unidoses") }}</th>
+            <th>{{ t("table.target_unidoses") }}</th>
+            <th>{{ t("table.delta_unidoses") }}</th>
+            <th data-sortable="false" data-filterable="false">{{ t("product.adjust") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for batch in loc_batches %}
+          <tr>
+            <td>{{ batch.batch_code or "-" }}</td>
+            <td>{{ batch.storage_bucket or "-" }}</td>
+            <td>{{ batch.expiry_date }}</td>
+            <td><strong>{{ batch.quantity }}</strong></td>
+            <td>{{ batch.unidose_per_pack }}</td>
+            <td>{{ batch.quantity * batch.unidose_per_pack }}</td>
+            <td>{{ batch.target_unidoses_location }}</td>
+            <td>{{ batch.target_unidoses_location - (batch.quantity * batch.unidose_per_pack) }}</td>
+            <td>
+              <form method="post" action="/items/{{ batch.id }}/move" class="d-flex gap-1 flex-wrap">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+                <input type="number" min="1" step="1" name="quantity_step" value="1" class="form-control form-control-sm qty-field" />
+                <input type="text" name="note" placeholder="{{ t('product.note_placeholder') }}" class="form-control form-control-sm note-field" />
+                <button class="btn btn-sm btn-outline-success" name="direction" value="in" type="submit">+ {{ t("product.add") }}</button>
+                <button class="btn btn-sm btn-outline-danger" name="direction" value="out" type="submit">- {{ t("product.remove") }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
+  {% endfor %}
+  {# Batches without a location (legacy or ungrouped) #}
+  {% set no_loc_batches = batches | rejectattr("storage_location", "in", location_options) | list %}
+  {% if no_loc_batches %}
+  <div class="card-body pb-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mb-2">
+        <thead class="table-light">
+          <tr>
+            <th>{{ t("table.batch") }}</th>
+            <th>{{ t("table.location") }}</th>
+            <th>{{ t("table.bucket") }}</th>
+            <th>{{ t("table.expiry") }}</th>
+            <th>{{ t("table.quantity") }}</th>
+            <th>{{ t("table.total_unidoses") }}</th>
+            <th>{{ t("table.target_unidoses") }}</th>
+            <th>{{ t("table.delta_unidoses") }}</th>
+            <th>{{ t("product.adjust") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for batch in no_loc_batches %}
+          <tr>
+            <td>{{ batch.batch_code or "-" }}</td>
+            <td>{{ batch.storage_location or "-" }}</td>
+            <td>{{ batch.storage_bucket or "-" }}</td>
+            <td>{{ batch.expiry_date }}</td>
+            <td><strong>{{ batch.quantity }}</strong></td>
+            <td>{{ batch.quantity * batch.unidose_per_pack }}</td>
+            <td>{{ batch.target_unidoses_location }}</td>
+            <td>{{ batch.target_unidoses_location - (batch.quantity * batch.unidose_per_pack) }}</td>
+            <td>
+              <form method="post" action="/items/{{ batch.id }}/move" class="d-flex gap-1 flex-wrap">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+                <input type="number" min="1" step="1" name="quantity_step" value="1" class="form-control form-control-sm qty-field" />
+                <input type="text" name="note" placeholder="{{ t('product.note_placeholder') }}" class="form-control form-control-sm note-field" />
+                <button class="btn btn-sm btn-outline-success" name="direction" value="in" type="submit">+ {{ t("product.add") }}</button>
+                <button class="btn btn-sm btn-outline-danger" name="direction" value="out" type="submit">- {{ t("product.remove") }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <div class="card">

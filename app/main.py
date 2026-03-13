@@ -415,6 +415,27 @@ def _storage_location_field_context(
     }
 
 
+def _plan_locations(session: Session) -> list[str]:
+    """Return sorted unique location names from LocationPlans + existing StockItems."""
+    plan_locs = session.exec(
+        select(LocationPlan.location).distinct().order_by(LocationPlan.location)
+    ).all()
+    item_locs = session.exec(
+        select(StockItem.storage_location)
+        .where(StockItem.storage_location != "")
+        .distinct()
+        .order_by(func.lower(StockItem.storage_location))
+    ).all()
+    seen: set[str] = set()
+    result: list[str] = []
+    for loc in list(plan_locs) + [r for r in item_locs if r]:
+        key = (loc or "").strip()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(key)
+    return result
+
+
 def _telegram_operation_message(*, operation: str, actor: str, detail: str) -> str:
     return f"[stockmgr] {operation}\nactor: {actor}\n{detail}"
 
@@ -1362,6 +1383,18 @@ def product_detail(
         .order_by(StockMovement.created_at.desc())
     )
     movement_rows = session.exec(movement_query).all()
+
+    # Build per-location plan info map
+    location_plans: dict[str, dict] = {}
+    for loc in location_options:
+        plan = session.exec(select(LocationPlan).where(LocationPlan.location == loc)).first()
+        if plan:
+            location_plans[loc] = {
+                "participants": plan.participants,
+                "days": plan.days,
+                "total_meal_occasions": plan.total_meal_occasions,
+            }
+
     return _render(
         request,
         "product_detail.html",
@@ -1374,6 +1407,7 @@ def product_detail(
             "location_options": location_options,
             "batches": batches,
             "movement_rows": movement_rows,
+            "location_plans": location_plans,
             "message": _fetch_message(request),
         },
     )
@@ -1389,7 +1423,7 @@ def item_new(request: Request, session: Session = Depends(get_session)):
     prefill_item_type = request.query_params.get("item_type", "").strip()
     prefill_location = request.query_params.get("storage_location", "").strip()
     prefill_bucket = request.query_params.get("storage_bucket", "").strip()
-    location_context = _storage_location_field_context(session, selected_location=prefill_location)
+    plans_map = {p.location: p.total_meal_occasions for p in session.exec(select(LocationPlan)).all()}
     return _render(
         request,
         "item_form.html",
@@ -1408,11 +1442,8 @@ def item_new(request: Request, session: Session = Depends(get_session)):
             },
             "lookup": None,
             "food_groups": FOOD_GROUPS,
-            "location_plans_json": json.dumps(
-                {p.location: p.total_meal_occasions
-                 for p in session.exec(select(LocationPlan)).all()}
-            ),
-            **location_context,
+            "plan_locations": _plan_locations(session),
+            "location_plans_json": json.dumps(plans_map),
         },
     )
 
@@ -1443,6 +1474,7 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
     location_context = _storage_location_field_context(
         session, selected_location=item.storage_location
     )
+    plans_map = {p.location: p.total_meal_occasions for p in session.exec(select(LocationPlan)).all()}
     return _render(
         request,
         "item_form.html",
@@ -1454,10 +1486,8 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
             "related_batches": related_batches,
             "movement_rows": movement_rows,
             "food_groups": FOOD_GROUPS,
-            "location_plans_json": json.dumps(
-                {p.location: p.total_meal_occasions
-                 for p in session.exec(select(LocationPlan)).all()}
-            ),
+            "plan_locations": _plan_locations(session),
+            "location_plans_json": json.dumps(plans_map),
             **location_context,
         },
     )
@@ -1502,6 +1532,7 @@ async def lookup_for_form(
         session,
         selected_location=str(draft.get("storage_location") or ""),
     )
+    plans_map = {p.location: p.total_meal_occasions for p in session.exec(select(LocationPlan)).all()}
     return _render(
         request,
         "item_form.html",
@@ -1511,10 +1542,8 @@ async def lookup_for_form(
             "draft": draft,
             "lookup": result,
             "food_groups": FOOD_GROUPS,
-            "location_plans_json": json.dumps(
-                {p.location: p.total_meal_occasions
-                 for p in session.exec(select(LocationPlan)).all()}
-            ),
+            "plan_locations": _plan_locations(session),
+            "location_plans_json": json.dumps(plans_map),
             **location_context,
         },
     )
@@ -1531,6 +1560,84 @@ async def item_create(
         return maybe_user
     user = maybe_user
     form = await request.form()
+
+    # Multi-location create: loc_location[] submitted per row
+    loc_locations = form.getlist("loc_location")
+    if loc_locations:
+        # Filter to non-empty location rows
+        loc_batch_codes = form.getlist("loc_batch_code")
+        loc_expiries = form.getlist("loc_expiry")
+        loc_quantities = form.getlist("loc_quantity")
+        loc_buckets = form.getlist("loc_bucket")
+        loc_renewals = form.getlist("loc_renewal")
+        loc_targets = form.getlist("loc_target")
+
+        base_payload = _item_payload_from_form(dict(form))
+        if not base_payload.get("food_group"):
+            base_payload["food_group"] = infer_food_group(
+                name=base_payload.get("name") or "",
+                item_type=base_payload.get("item_type") or "",
+            )
+
+        created_items: list[StockItem] = []
+        for idx, loc in enumerate(loc_locations):
+            loc = loc.strip()
+            if not loc:
+                continue
+            expiry = loc_expiries[idx] if idx < len(loc_expiries) else ""
+            if not expiry:
+                continue
+            row = dict(base_payload)
+            row["storage_location"] = loc
+            row["batch_code"] = (loc_batch_codes[idx] if idx < len(loc_batch_codes) else None) or None
+            row["expiry_date"] = expiry
+            row["quantity"] = int(loc_quantities[idx] or 0) if idx < len(loc_quantities) else 0
+            row["storage_bucket"] = loc_buckets[idx] if idx < len(loc_buckets) else ""
+            renewal_raw = loc_renewals[idx] if idx < len(loc_renewals) else ""
+            row["renewal_date"] = renewal_raw if renewal_raw else None
+            target_raw = loc_targets[idx] if idx < len(loc_targets) else 0
+            row["target_unidoses_location"] = int(target_raw or 0)
+            if not row["target_unidoses_location"]:
+                plan = session.exec(select(LocationPlan).where(LocationPlan.location == loc)).first()
+                if plan and row.get("food_group"):
+                    fg = FOOD_GROUP_BY_KEY.get(row["food_group"])
+                    if fg:
+                        row["target_unidoses_location"] = math.ceil(
+                            plan.total_meal_occasions * fg.target_pct / 100
+                        )
+            try:
+                item_in = ItemCreate.model_validate(row)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail=exc.errors()) from exc
+            item = StockItem(**item_in.model_dump(), user_id=user.id)
+            session.add(item)
+            session.commit()
+            session.refresh(item)
+            created_items.append(item)
+            if item.quantity > 0:
+                session.add(StockMovement(
+                    stock_item_id=item.id,
+                    user_id=user.id,
+                    delta=item.quantity,
+                    note="Initial stock quantity",
+                ))
+                session.commit()
+            try:
+                await calendar_service.schedule_renewal(user=user, item=item)
+            except CalendarSyncError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+        names = ", ".join(i.storage_location for i in created_items)
+        await _notify_telegram_operation_async(
+            operation="item-created",
+            actor=user.email,
+            detail=(
+                f"name={base_payload.get('name')} type={base_payload.get('item_type')} "
+                f"locations={names}"
+            ),
+        )
+        return RedirectResponse("/?m=item-created", status_code=303)
+
+    # Legacy single-row path
     payload = _item_payload_from_form(dict(form))
     # Auto-infer food_group from name/type if not set
     if not payload.get("food_group"):

@@ -458,11 +458,120 @@ def test_new_item_page_prefills_product_and_location_from_query(client):
         "/items/new?name=Olive%20Oil&item_type=food&barcode=5605555555555&storage_location=Kitchen"
     )
     assert prefilled_for_batch.status_code == 200
-    assert 'id="storage-location-select"' in prefilled_for_batch.text
-    assert '<option value="Kitchen" selected>' in prefilled_for_batch.text
+    assert 'id="location-entries"' in prefilled_for_batch.text
+    assert 'name="loc_location"' in prefilled_for_batch.text
 
 
-def test_excel_api_requires_valid_key_and_supports_read(client):
+def test_multi_location_create_produces_one_item_per_row(client):
+    """Submitting loc_* multi-row fields creates one StockItem per location row."""
+    csrf = client.get("/items/new").text
+    import re
+    token = re.search(r'name="_csrf_token" value="([^"]+)"', csrf).group(1)
+
+    response = client.post(
+        "/items",
+        data={
+            "_csrf_token": token,
+            "name": "Canned Tomatoes",
+            "item_type": "food",
+            "barcode": "5601111111111",
+            "unidose_per_pack": "2",
+            "loc_location": ["Pantry A", "Basement"],
+            "loc_batch_code": ["B01", "B02"],
+            "loc_expiry": ["2032-01-01", "2033-06-01"],
+            "loc_quantity": ["10", "5"],
+            "loc_bucket": ["Shelf 1", ""],
+            "loc_renewal": ["", ""],
+            "loc_target": ["0", "0"],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    items = client.get("/api/items").json()
+    tomato_items = [i for i in items if i["name"] == "Canned Tomatoes"]
+    assert len(tomato_items) == 2
+    locations = {i["storage_location"] for i in tomato_items}
+    assert locations == {"Pantry A", "Basement"}
+    assert tomato_items[0]["barcode"] == "5601111111111"
+
+
+def test_multi_location_create_skips_empty_rows(client):
+    """Rows with empty location or expiry are skipped."""
+    csrf = client.get("/items/new").text
+    import re
+    token = re.search(r'name="_csrf_token" value="([^"]+)"', csrf).group(1)
+
+    response = client.post(
+        "/items",
+        data={
+            "_csrf_token": token,
+            "name": "Rice",
+            "item_type": "food",
+            "barcode": "5602222222222",
+            "unidose_per_pack": "1",
+            "loc_location": ["Kitchen", ""],
+            "loc_batch_code": ["", ""],
+            "loc_expiry": ["2030-12-31", ""],
+            "loc_quantity": ["3", "0"],
+            "loc_bucket": ["", ""],
+            "loc_renewal": ["", ""],
+            "loc_target": ["0", "0"],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    items = client.get("/api/items").json()
+    rice_items = [i for i in items if i["name"] == "Rice"]
+    assert len(rice_items) == 1
+    assert rice_items[0]["storage_location"] == "Kitchen"
+
+
+def test_create_form_shows_plan_locations_datalist(client):
+    """The create form datalist includes locations from existing items."""
+    client.post(
+        "/api/items",
+        json={
+            "name": "Pasta",
+            "item_type": "food",
+            "barcode": "5603333333333",
+            "storage_location": "StorageRoom",
+            "expiry_date": "2031-01-01",
+            "quantity": 1,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 0,
+        },
+    )
+    page = client.get("/items/new")
+    assert page.status_code == 200
+    assert "StorageRoom" in page.text
+    assert 'id="plan-locations-list"' in page.text
+
+
+def test_product_detail_shows_batches_grouped_by_location(client):
+    """Product detail page groups batches by location."""
+    for loc in ["Pantry", "Garage"]:
+        client.post(
+            "/api/items",
+            json={
+                "name": "Lentils",
+                "item_type": "food",
+                "barcode": "5604444444444",
+                "storage_location": loc,
+                "expiry_date": "2031-06-01",
+                "quantity": 5,
+                "unidose_per_pack": 1,
+                "target_unidoses_location": 10,
+            },
+        )
+    page = client.get("/products/by-name/food/Lentils")
+    assert page.status_code == 200
+    assert "Pantry" in page.text
+    assert "Garage" in page.text
+
+
+
     unauthorized = client.get("/api/excel/stocks")
     assert unauthorized.status_code == 401
 
