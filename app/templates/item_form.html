@@ -44,8 +44,21 @@
 </div>
 {% endif %}
 
+{% if lookup and lookup.found and draft.image_url %}
+<div class="mb-3 d-flex align-items-center gap-3">
+  <img src="{{ draft.image_url }}" alt="{{ draft.name or 'product' }}" class="rounded border" style="max-height:100px;max-width:100px;object-fit:contain;" />
+  {% if draft.nutriscore %}
+  <span class="badge fs-6 text-uppercase" style="background:var(--bs-{% if draft.nutriscore == 'a' %}success{% elif draft.nutriscore == 'b' %}success{% elif draft.nutriscore == 'c' %}warning{% elif draft.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">
+    {{ t("label.nutriscore") }}: {{ draft.nutriscore | upper }}
+  </span>
+  {% endif %}
+</div>
+{% endif %}
+
 <form method="post" action="{% if mode == 'edit' %}/items/{{ draft.id }}/update{% else %}/items{% endif %}">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+  <input type="hidden" name="image_url" value="{{ draft.image_url or '' }}" />
+  <input type="hidden" name="nutriscore" value="{{ draft.nutriscore or '' }}" />
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label">{{ t("label.barcode") }}</label>

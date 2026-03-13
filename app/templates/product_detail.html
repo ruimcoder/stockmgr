@@ -16,9 +16,19 @@
   </div>
   <div class="card-body">
     <div class="row g-3">
+      {% if product_summary.image_url %}
+      <div class="col-md-2 d-flex align-items-center">
+        <img src="{{ product_summary.image_url }}" alt="{{ product_name }}" class="img-fluid rounded border" style="max-height:120px;object-fit:contain;" />
+      </div>
+      {% endif %}
+      <div class="{% if product_summary.image_url %}col-md-10{% else %}col-12{% endif %}">
+        <div class="row g-3">
       <div class="col-md-3">
         <small class="text-muted d-block">{{ t("label.barcode") }}</small>
         <strong>{{ product_summary.barcode or "-" }}</strong>
+        {% if product_summary.nutriscore %}
+        <span class="badge ms-2 text-uppercase" style="background:var(--bs-{% if product_summary.nutriscore == 'a' %}success{% elif product_summary.nutriscore == 'b' %}success{% elif product_summary.nutriscore == 'c' %}warning{% elif product_summary.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">{{ t("label.nutriscore") }} {{ product_summary.nutriscore | upper }}</span>
+        {% endif %}
       </div>
       <div class="col-md-3">
         <small class="text-muted d-block">{{ t("label.temp_min") }} / {{ t("label.temp_max") }}</small>
@@ -43,6 +53,8 @@
       <div class="col-md-3">
         <small class="text-muted d-block">{{ t("table.total_unidoses") }}</small>
         <strong>{{ product_summary.total_unidoses }}</strong>
+      </div>
+        </div>
       </div>
     </div>
   </div>

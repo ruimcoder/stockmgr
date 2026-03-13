@@ -14,6 +14,7 @@
         "go_upc"
       ],
       "nonFood": [
+        "open_food_facts",
         "open_products_facts",
         "continente_pt",
         "upcitemdb",
@@ -26,8 +27,8 @@
         "go_upc"
       ],
       "unknown": [
-        "open_products_facts",
         "open_food_facts",
+        "open_products_facts",
         "continente_pt",
         "upcitemdb",
         "go_upc"
@@ -53,7 +54,7 @@
       ],
       "legalReviewRequired": false,
       "request": {
-        "baseUrl": "https://world.openfoodfacts.org/api/v2",
+        "baseUrl": "https://pt.openfoodfacts.org/api/v2",
         "timeoutMs": 4000,
         "retries": 1,
         "userAgent": "stockmgr/0.1 (+https://github.com/ruimcoder/stockmgr)"
@@ -63,7 +64,7 @@
         "supportsSearch": true,
         "supportsBulk": false
       },
-      "notes": "Primary provider for food items with Portugal-first behavior."
+      "notes": "Primary provider for food items. Uses Portuguese OpenFoodFacts endpoint for PT-first results and Nutri-score data."
     },
     "open_products_facts": {
       "displayName": "Open Products Facts",

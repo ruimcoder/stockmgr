@@ -310,6 +310,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "humidity_max_pct",
         "renewal_date",
         "comment",
+        "image_url",
+        "nutriscore",
     ):
         value = form.get(key)
         if key == "storage_bucket":
@@ -1099,6 +1101,8 @@ def product_detail(
         "humidity_min_pct": primary_batch.humidity_min_pct,
         "humidity_max_pct": primary_batch.humidity_max_pct,
         "renewal_date": primary_batch.renewal_date,
+        "image_url": primary_batch.image_url,
+        "nutriscore": primary_batch.nutriscore,
         "batch_count": len(batches),
         "total_quantity": sum(batch.quantity for batch in batches),
         "total_unidoses": sum(batch.quantity * batch.unidose_per_pack for batch in batches),
@@ -1233,6 +1237,8 @@ async def lookup_for_form(
                 "storage_bucket": "",
                 "unidose_per_pack": 1,
                 "target_unidoses_location": 0,
+                "image_url": result.data.get("imageUrl"),
+                "nutriscore": result.data.get("nutriscore"),
             }
         )
     location_context = _storage_location_field_context(
@@ -1479,7 +1485,12 @@ def admin_users(
     return _render(
         request,
         "admin_users.html",
-        {"user": admin, "users": users, "message": _fetch_message(request)},
+        {
+            "user": admin,
+            "users": users,
+            "message": _fetch_message(request),
+            "enriched_count": request.query_params.get("enriched"),
+        },
     )
 
 
@@ -1539,6 +1550,48 @@ def admin_toggle_admin(
     session.add(user)
     session.commit()
     return RedirectResponse("/admin/users?m=user-role-updated", status_code=303)
+
+
+@app.post("/admin/enrich-items")
+async def admin_enrich_items(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
+):
+    """Re-query barcode providers for all items missing image_url or nutriscore."""
+    _ = request
+    items_with_barcode = session.exec(
+        select(StockItem).where(
+            StockItem.barcode.is_not(None),  # type: ignore[union-attr]
+            StockItem.barcode != "",
+        )
+    ).all()
+    enriched = 0
+    for item in items_with_barcode:
+        if item.image_url and item.nutriscore:
+            continue
+        try:
+            result = await barcode_service.lookup(
+                barcode=item.barcode, item_type=item.item_type
+            )
+        except Exception:
+            continue
+        if not result.found or not result.data:
+            continue
+        changed = False
+        if not item.image_url and result.data.get("imageUrl"):
+            item.image_url = result.data["imageUrl"]
+            changed = True
+        if not item.nutriscore and result.data.get("nutriscore"):
+            item.nutriscore = result.data["nutriscore"]
+            changed = True
+        if changed:
+            item.updated_at = datetime.now(UTC)
+            session.add(item)
+            enriched += 1
+    session.commit()
+    return RedirectResponse(f"/admin/users?m=enrich-done&enriched={enriched}", status_code=303)
 
 
 @app.get("/api/items", response_model=list[ItemRead])
