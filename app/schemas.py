@@ -21,6 +21,8 @@ class ItemBase(BaseModel):
     humidity_max_pct: float | None = None
     renewal_date: date | None = None
     comment: str | None = None
+    image_url: str | None = None
+    nutriscore: str | None = None
 
     @field_validator("name", "item_type", "storage_location")
     @classmethod

@@ -142,7 +142,8 @@ class BarcodeLookupService:
         if country_priority and "PT" in country_priority and payload.get("_countryMatchPT"):
             country_bonus = 2
         field_score = sum(
-            1 for k in ("name", "brand", "category", "size", "imageUrl") if payload.get(k)
+            1 for k in ("name", "brand", "category", "size", "imageUrl", "nutriscore")
+            if payload.get(k)
         )
         return field_score + country_bonus
 
@@ -189,12 +190,21 @@ class BarcodeLookupService:
         if not product:
             return None
         countries = product.get("countries_tags", [])
+        raw_nutriscore = product.get("nutriscore_grade") or product.get("nutrition_grade_fr")
+        nutriscore: str | None = None
+        if raw_nutriscore and str(raw_nutriscore).strip().lower() not in {
+            "not-applicable",
+            "unknown",
+            "",
+        }:
+            nutriscore = str(raw_nutriscore).strip().lower()
         return {
             "barcode": barcode,
             "name": product.get("product_name"),
             "brand": product.get("brands"),
             "category": product.get("categories"),
-            "imageUrl": product.get("image_url"),
+            "imageUrl": product.get("image_front_url") or product.get("image_url"),
+            "nutriscore": nutriscore,
             "size": product.get("quantity"),
             "ingredients": product.get("ingredients_text"),
             "nutrition": product.get("nutriments"),

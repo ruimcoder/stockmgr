@@ -38,6 +38,8 @@ class StockItem(SQLModel, table=True):
     humidity_max_pct: float | None = Field(default=None)
     renewal_date: date | None = Field(default=None)
     comment: str | None = Field(default=None)
+    image_url: str | None = Field(default=None)
+    nutriscore: str | None = Field(default=None)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)

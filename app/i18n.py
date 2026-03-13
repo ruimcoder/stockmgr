@@ -110,6 +110,8 @@ TRANSLATIONS = {
         "label.humidity_max": "Humidity max (%)",
         "label.renewal_date": "Renewal date",
         "label.comment": "Comment / notes",
+        "label.nutriscore": "Nutri-score",
+        "label.image_url": "Product image",
         "import.title": "Import items from CSV or Excel",
         "import.file_label": "File (.csv or .xlsx)",
         "import.button": "Import",
@@ -176,6 +178,13 @@ TRANSLATIONS = {
         "admin.reject": "Reject",
         "admin.toggle_admin": "Toggle Admin",
         "admin.no_users": "No users found.",
+        "admin.enrich_title": "Enrich product data",
+        "admin.enrich_description": (
+            "Re-query barcode providers for all items with a barcode to fill in "
+            "missing product images and Nutri-score."
+        ),
+        "admin.enrich_button": "Run enrichment",
+        "msg.enrich-done": "Enrichment complete. Items updated",
         "msg.registered-approved": "Registration approved. You are now signed in.",
         "msg.registration-pending": "Registration submitted. Waiting for admin approval.",
         "msg.register-already-exists": "This account already exists. Please login.",
@@ -302,6 +311,8 @@ TRANSLATIONS = {
         "label.humidity_max": "Humidade maxima (%)",
         "label.renewal_date": "Data de renovacao",
         "label.comment": "Comentário / notas",
+        "label.nutriscore": "Nutri-score",
+        "label.image_url": "Imagem do produto",
         "import.title": "Importar itens por CSV ou Excel",
         "import.file_label": "Ficheiro (.csv ou .xlsx)",
         "import.button": "Importar",
@@ -366,6 +377,13 @@ TRANSLATIONS = {
         "admin.reject": "Rejeitar",
         "admin.toggle_admin": "Alternar Admin",
         "admin.no_users": "Sem utilizadores.",
+        "admin.enrich_title": "Enriquecer dados dos produtos",
+        "admin.enrich_description": (
+            "Consultar fornecedores de codigo de barras para todos os itens com codigo, "
+            "preenchendo imagens e Nutri-score em falta."
+        ),
+        "admin.enrich_button": "Executar enriquecimento",
+        "msg.enrich-done": "Enriquecimento concluido. Itens atualizados",
         "msg.registered-approved": "Registo aprovado. Sessao iniciada.",
         "msg.registration-pending": "Registo submetido. Aguarda aprovacao.",
         "msg.register-already-exists": "Esta conta ja existe. Faca login.",

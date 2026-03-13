@@ -3,7 +3,7 @@
 <h1 class="h4 mb-3">{{ t("admin.title") }}</h1>
 
 {% if message %}
-<div class="alert alert-info py-2">{{ t("msg." ~ message) }}</div>
+<div class="alert alert-info py-2">{% if message == 'enrich-done' %}{{ t("msg.enrich-done") }} ({{ enriched_count }}){% else %}{{ t("msg." ~ message) }}{% endif %}</div>
 {% endif %}
 
 <div class="card">
@@ -49,6 +49,17 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">{{ t("admin.enrich_title") }}</div>
+  <div class="card-body">
+    <p class="text-muted mb-2">{{ t("admin.enrich_description") }}</p>
+    <form method="post" action="/admin/enrich-items">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+      <button class="btn btn-outline-primary" type="submit">{{ t("admin.enrich_button") }}</button>
+    </form>
   </div>
 </div>
 {% endblock %}
