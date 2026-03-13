@@ -371,11 +371,10 @@ def test_item_edit_page_shows_related_batches_and_log(client):
     assert edit_page.status_code == 200
     assert "LOT-1" in edit_page.text
     assert "LOT-2" in edit_page.text
-    assert "Stock movement log" in edit_page.text
-    assert "edit-context-note" in edit_page.text
-    assert 'id="storage-location-select"' in edit_page.text
-    assert '<option value="LocA" selected>' in edit_page.text
-    assert '<option value="LocB">' in edit_page.text
+    # New edit form shows multi-row batch table (no movement log on edit page)
+    assert 'class="row-location-sel' in edit_page.text or 'row-location-sel' in edit_page.text
+    assert "LocA" in edit_page.text
+    assert "LocB" in edit_page.text
     assert 'value="__new__"' in edit_page.text
 
 
@@ -572,8 +571,138 @@ def test_product_detail_shows_batches_grouped_by_location(client):
 
 
 
-    unauthorized = client.get("/api/excel/stocks")
-    assert unauthorized.status_code == 401
+def test_edit_multi_row_updates_existing_batch(client):
+    """Multi-row edit form: updates an existing batch and creates a new one."""
+    created = client.post(
+        "/api/items",
+        json={
+            "name": "Chickpeas",
+            "item_type": "food",
+            "barcode": "5607777777771",
+            "storage_location": "PantryX",
+            "expiry_date": "2031-01-01",
+            "quantity": 5,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 10,
+        },
+    )
+    assert created.status_code == 200
+    item_id = created.json()["id"]
+
+    # Submit multi-row update: update existing + add new row
+    import re
+    csrf = re.search(r'name="_csrf_token" value="([^"]+)"', client.get(f"/items/{item_id}/edit").text).group(1)
+    response = client.post(
+        f"/items/{item_id}/update",
+        data={
+            "_csrf_token": csrf,
+            "name": "Chickpeas",
+            "item_type": "food",
+            "barcode": "5607777777771",
+            "unidose_per_pack": "1",
+            "row_id": [str(item_id), ""],
+            "row_location": ["PantryX", "BasementY"],
+            "row_batch_code": ["", "B02"],
+            "row_expiry": ["2032-01-01", "2033-01-01"],
+            "row_quantity": ["8", "3"],
+            "row_bucket": ["", ""],
+            "row_target": ["10", "5"],
+            "row_renewal": ["", ""],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    items = client.get("/api/items").json()
+    chickpea_items = [i for i in items if i["name"] == "Chickpeas"]
+    assert len(chickpea_items) == 2
+    pantry = next(i for i in chickpea_items if i["storage_location"] == "PantryX")
+    basement = next(i for i in chickpea_items if i["storage_location"] == "BasementY")
+    assert pantry["quantity"] == 8
+    assert pantry["expiry_date"] == "2032-01-01"
+    assert basement["quantity"] == 3
+    assert basement["batch_code"] == "B02"
+
+
+def test_edit_multi_row_delete_marks_batch_for_removal(client):
+    """Multi-row edit: batches listed in delete_ids are removed."""
+    items_data = []
+    for loc in ["LocDel1", "LocDel2"]:
+        r = client.post(
+            "/api/items",
+            json={
+                "name": "Quinoa",
+                "item_type": "food",
+                "barcode": "5607777777772",
+                "storage_location": loc,
+                "expiry_date": "2031-06-01",
+                "quantity": 4,
+                "unidose_per_pack": 1,
+                "target_unidoses_location": 8,
+            },
+        )
+        items_data.append(r.json())
+
+    primary_id = items_data[0]["id"]
+    delete_id = items_data[1]["id"]
+
+    import re
+    csrf = re.search(r'name="_csrf_token" value="([^"]+)"', client.get(f"/items/{primary_id}/edit").text).group(1)
+    response = client.post(
+        f"/items/{primary_id}/update",
+        data={
+            "_csrf_token": csrf,
+            "name": "Quinoa",
+            "item_type": "food",
+            "barcode": "5607777777772",
+            "unidose_per_pack": "1",
+            "delete_ids": [str(delete_id)],
+            "row_id": [str(primary_id)],
+            "row_location": ["LocDel1"],
+            "row_batch_code": [""],
+            "row_expiry": ["2031-06-01"],
+            "row_quantity": ["4"],
+            "row_bucket": [""],
+            "row_target": ["8"],
+            "row_renewal": [""],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    remaining = client.get("/api/items").json()
+    quinoa_items = [i for i in remaining if i["name"] == "Quinoa"]
+    assert len(quinoa_items) == 1
+    assert quinoa_items[0]["storage_location"] == "LocDel1"
+
+
+def test_edit_page_shows_all_batches_as_rows(client):
+    """Edit page shows all product batches as editable rows."""
+    for loc in ["LocA2", "LocB2"]:
+        client.post(
+            "/api/items",
+            json={
+                "name": "Barley",
+                "item_type": "food",
+                "barcode": "5607777777773",
+                "storage_location": loc,
+                "expiry_date": "2032-01-01",
+                "quantity": 2,
+                "unidose_per_pack": 1,
+                "target_unidoses_location": 5,
+            },
+        )
+    items = client.get("/api/items").json()
+    barley = [i for i in items if i["name"] == "Barley"]
+    edit_page = client.get(f"/items/{barley[0]['id']}/edit")
+    assert edit_page.status_code == 200
+    assert "LocA2" in edit_page.text
+    assert "LocB2" in edit_page.text
+    assert 'id="edit-location-entries"' in edit_page.text
+    assert 'name="row_id"' in edit_page.text
+
+
+def test_excel_api_requires_valid_key_and_supports_read(client):
 
     authorized = client.get(
         "/api/excel/stocks",

@@ -1457,22 +1457,10 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
     item = session.get(StockItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
-    related_batches = _product_batches(
+    all_batches = _product_batches(
         session,
         item_type=item.item_type,
         product_name=item.name,
-    )
-    movement_rows = session.exec(
-        select(StockMovement, StockItem)
-        .join(StockItem, StockItem.id == StockMovement.stock_item_id)
-        .where(
-            StockItem.item_type == item.item_type,
-            StockItem.name == item.name,
-        )
-        .order_by(StockMovement.created_at.desc())
-    ).all()
-    location_context = _storage_location_field_context(
-        session, selected_location=item.storage_location
     )
     plans_map = {p.location: p.total_meal_occasions for p in session.exec(select(LocationPlan)).all()}
     return _render(
@@ -1483,12 +1471,10 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
             "mode": "edit",
             "draft": item,
             "lookup": None,
-            "related_batches": related_batches,
-            "movement_rows": movement_rows,
+            "all_batches": all_batches,
             "food_groups": FOOD_GROUPS,
             "plan_locations": _plan_locations(session),
             "location_plans_json": json.dumps(plans_map),
-            **location_context,
         },
     )
 
@@ -1706,16 +1692,131 @@ async def item_update(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
 
-    previous_quantity = item.quantity
     form = await request.form()
+
+    # ── Multi-row edit path ──────────────────────────────────────────────
+    row_ids = form.getlist("row_id")
+    if row_ids is not None and len(row_ids) > 0:
+        # Product-level fields (shared across all batches)
+        product_payload = _item_payload_from_form(dict(form))
+        if not product_payload.get("food_group"):
+            product_payload["food_group"] = infer_food_group(
+                name=product_payload.get("name") or "",
+                item_type=product_payload.get("item_type") or "",
+            )
+
+        # Delete marked batches (safety: only delete batches for this product)
+        delete_ids_raw = form.getlist("delete_ids")
+        for raw_id in delete_ids_raw:
+            try:
+                del_id = int(raw_id)
+            except (ValueError, TypeError):
+                continue
+            del_item = session.get(StockItem, del_id)
+            if del_item and del_item.name == item.name and del_item.item_type == item.item_type:
+                session.delete(del_item)
+        session.commit()
+
+        row_locations = form.getlist("row_location")
+        row_batch_codes = form.getlist("row_batch_code")
+        row_expiries = form.getlist("row_expiry")
+        row_quantities = form.getlist("row_quantity")
+        row_buckets = form.getlist("row_bucket")
+        row_targets = form.getlist("row_target")
+        row_renewals = form.getlist("row_renewal")
+
+        for idx, raw_row_id in enumerate(row_ids):
+            loc = (row_locations[idx] if idx < len(row_locations) else "").strip()
+            if not loc:
+                continue
+            expiry = row_expiries[idx] if idx < len(row_expiries) else ""
+            if not expiry:
+                continue
+
+            row = dict(product_payload)
+            row["storage_location"] = loc
+            row["batch_code"] = (row_batch_codes[idx] if idx < len(row_batch_codes) else None) or None
+            row["expiry_date"] = expiry
+            row["quantity"] = int(row_quantities[idx] or 0) if idx < len(row_quantities) else 0
+            row["storage_bucket"] = row_buckets[idx] if idx < len(row_buckets) else ""
+            renewal_raw = row_renewals[idx] if idx < len(row_renewals) else ""
+            row["renewal_date"] = renewal_raw if renewal_raw else None
+            target_raw = row_targets[idx] if idx < len(row_targets) else 0
+            row["target_unidoses_location"] = int(target_raw or 0)
+            if not row["target_unidoses_location"]:
+                plan = session.exec(select(LocationPlan).where(LocationPlan.location == loc)).first()
+                if plan and row.get("food_group"):
+                    fg = FOOD_GROUP_BY_KEY.get(row["food_group"])
+                    if fg:
+                        row["target_unidoses_location"] = math.ceil(
+                            plan.total_meal_occasions * fg.target_pct / 100
+                        )
+
+            try:
+                item_in = ItemCreate.model_validate(row)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+            raw_row_id = raw_row_id.strip()
+            if raw_row_id:
+                existing = session.get(StockItem, int(raw_row_id))
+                if existing and existing.name == item.name and existing.item_type == item.item_type:
+                    previous_qty = existing.quantity
+                    for key, value in item_in.model_dump().items():
+                        setattr(existing, key, value)
+                    existing.updated_at = datetime.now(UTC)
+                    session.add(existing)
+                    session.commit()
+                    session.refresh(existing)
+                    qty_delta = existing.quantity - previous_qty
+                    if qty_delta:
+                        session.add(StockMovement(
+                            stock_item_id=existing.id,
+                            user_id=user.id,
+                            delta=qty_delta,
+                            note="Quantity updated in edit form",
+                        ))
+                    try:
+                        await calendar_service.schedule_renewal(user=user, item=existing)
+                    except CalendarSyncError as exc:
+                        raise HTTPException(status_code=502, detail=str(exc)) from exc
+            else:
+                new_item = StockItem(**item_in.model_dump(), user_id=user.id)
+                session.add(new_item)
+                session.commit()
+                session.refresh(new_item)
+                if new_item.quantity > 0:
+                    session.add(StockMovement(
+                        stock_item_id=new_item.id,
+                        user_id=user.id,
+                        delta=new_item.quantity,
+                        note="Initial stock quantity",
+                    ))
+                try:
+                    await calendar_service.schedule_renewal(user=user, item=new_item)
+                except CalendarSyncError as exc:
+                    raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        session.commit()
+        await _notify_telegram_operation_async(
+            operation="item-updated",
+            actor=user.email,
+            detail=f"name={item.name} type={item.item_type} rows={len(row_ids)}",
+        )
+        product_name_enc = item.name.replace(" ", "%20")
+        return RedirectResponse(
+            f"/products/by-name/{item.item_type}/{product_name_enc}?m=item-updated",
+            status_code=303,
+        )
+
+    # ── Legacy single-field path (API / backward-compat) ────────────────
+    previous_quantity = item.quantity
     payload = _item_payload_from_form(dict(form))
-    # Auto-infer food_group from name/type if not set
     if not payload.get("food_group"):
         payload["food_group"] = infer_food_group(
             name=payload.get("name") or "",
             item_type=payload.get("item_type") or "",
         )
-    # Auto-compute target_unidoses_location from location plan if not set
     if not payload.get("target_unidoses_location"):
         loc = payload.get("storage_location") or ""
         plan = session.exec(select(LocationPlan).where(LocationPlan.location == loc)).first()

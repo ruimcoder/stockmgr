@@ -60,24 +60,204 @@
   <input type="hidden" name="image_url" value="{{ draft.image_url or '' }}" />
   <input type="hidden" name="nutriscore" value="{{ draft.nutriscore or '' }}" />
   <input type="hidden" name="food_group" id="food-group-hidden" value="{{ draft.food_group or '' }}" />
+
+  {% if mode == "edit" %}
+  {# ── Product info section (shared across all batches) ── #}
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ t("item.edit_product_info") }}</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">{{ t("label.barcode") }}</label>
+          <input class="form-control" name="barcode" value="{{ draft.barcode or '' }}" type="tel" inputmode="numeric" pattern="[0-9]*" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ t("label.name") }}</label>
+          <input class="form-control" name="name" value="{{ draft.name or '' }}" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ t("label.type") }}</label>
+          <input class="form-control" name="item_type" value="{{ draft.item_type or 'unknown' }}" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
+          <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.temp_min") }}</label>
+          <input class="form-control" name="temp_min_c" type="number" step="0.1" value="{{ draft.temp_min_c or '' }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.temp_max") }}</label>
+          <input class="form-control" name="temp_max_c" type="number" step="0.1" value="{{ draft.temp_max_c or '' }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.humidity_min") }}</label>
+          <input class="form-control" name="humidity_min_pct" type="number" step="0.1" value="{{ draft.humidity_min_pct or '' }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.humidity_max") }}</label>
+          <input class="form-control" name="humidity_max_pct" type="number" step="0.1" value="{{ draft.humidity_max_pct or '' }}" />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ t("label.food_group") }}</label>
+          <select class="form-select" id="food-group-select" name="food_group">
+            <option value="">—</option>
+            {% for group in food_groups %}
+            <option value="{{ group.key }}" data-color="{{ group.color }}" {% if draft.food_group == group.key %}selected{% endif %}>
+              {% if lang == "pt" %}{{ group.name_pt }}{% else %}{{ group.name_en }}{% endif %} ({{ group.target_pct }}%)
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">{{ t("label.comment") }}</label>
+          <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Multi-location batch rows ── #}
+  <hr class="my-3" />
+  <h2 class="h6 mb-1">{{ t("item.edit_batches_title") }}</h2>
+  <p class="text-muted small mb-3">{{ t("item.edit_batches_hint") }}</p>
+
+  {# Hidden field to collect IDs of rows marked for deletion #}
+  <div id="delete-ids-container"></div>
+
+  <div id="edit-location-entries">
+    {% for batch in all_batches %}
+    {% set in_plan_locations = batch.storage_location in plan_locations %}
+    <div class="edit-location-entry card mb-2" data-row-id="{{ batch.id }}">
+      <div class="card-body p-2">
+        <div class="row g-2 align-items-end">
+          <input type="hidden" name="row_id" value="{{ batch.id }}" />
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small fw-semibold">{{ t("label.storage_location") }} <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm row-location-sel" required>
+              <option value="">— {{ t("item.storage_location_select_existing") }} —</option>
+              {% for loc in plan_locations %}
+              <option value="{{ loc }}" {% if batch.storage_location == loc %}selected{% endif %}>{{ loc }}</option>
+              {% endfor %}
+              {% if batch.storage_location and not in_plan_locations %}
+              <option value="{{ batch.storage_location }}" selected>{{ batch.storage_location }}</option>
+              {% endif %}
+              <option value="__new__">+ {{ t("item.storage_location_add_new") }}</option>
+            </select>
+            <input type="text" class="form-control form-control-sm row-location-new mt-1 d-none"
+                   placeholder="{{ t('item.storage_location_new_label') }}" />
+            <input type="hidden" name="row_location" class="row-location-value" value="{{ batch.storage_location }}" required />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">{{ t("label.batch_code") }}</label>
+            <input class="form-control form-control-sm" name="row_batch_code" value="{{ batch.batch_code or '' }}" />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small fw-semibold">{{ t("label.expiry_date") }} <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" name="row_expiry" type="date" value="{{ batch.expiry_date or '' }}" required />
+          </div>
+          <div class="col-md-1 col-sm-4">
+            <label class="form-label small">{{ t("label.quantity") }}</label>
+            <input class="form-control form-control-sm" name="row_quantity" type="number" min="0" value="{{ batch.quantity }}" />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">{{ t("label.storage_bucket") }}</label>
+            <input class="form-control form-control-sm" name="row_bucket" value="{{ batch.storage_bucket or '' }}" />
+          </div>
+          <div class="col-md-1 col-sm-4">
+            <label class="form-label small">{{ t("label.target_unidoses_location") }}</label>
+            <input class="form-control form-control-sm" name="row_target" type="number" min="0" value="{{ batch.target_unidoses_location }}" />
+          </div>
+          <div class="col-md-1 col-sm-2 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-edit-entry" data-row-id="{{ batch.id }}" title="{{ t('common.remove') }}">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small">{{ t("label.renewal_date") }}</label>
+            <input class="form-control form-control-sm" name="row_renewal" type="date" value="{{ batch.renewal_date or '' }}" />
+          </div>
+          <div class="col-md-5 col-sm-6 d-flex align-items-end">
+            <div class="form-text text-info row-plan-hint mb-1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# Template for new rows (added by JS) #}
+  <template id="edit-row-template">
+    <div class="edit-location-entry card mb-2" data-row-id="">
+      <div class="card-body p-2">
+        <div class="row g-2 align-items-end">
+          <input type="hidden" name="row_id" value="" />
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small fw-semibold">{{ t("label.storage_location") }} <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm row-location-sel" required>
+              <option value="">— {{ t("item.storage_location_select_existing") }} —</option>
+              {% for loc in plan_locations %}
+              <option value="{{ loc }}">{{ loc }}</option>
+              {% endfor %}
+              <option value="__new__">+ {{ t("item.storage_location_add_new") }}</option>
+            </select>
+            <input type="text" class="form-control form-control-sm row-location-new mt-1 d-none"
+                   placeholder="{{ t('item.storage_location_new_label') }}" />
+            <input type="hidden" name="row_location" class="row-location-value" required />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">{{ t("label.batch_code") }}</label>
+            <input class="form-control form-control-sm" name="row_batch_code" />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small fw-semibold">{{ t("label.expiry_date") }} <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" name="row_expiry" type="date" required />
+          </div>
+          <div class="col-md-1 col-sm-4">
+            <label class="form-label small">{{ t("label.quantity") }}</label>
+            <input class="form-control form-control-sm" name="row_quantity" type="number" min="0" value="0" />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">{{ t("label.storage_bucket") }}</label>
+            <input class="form-control form-control-sm" name="row_bucket" />
+          </div>
+          <div class="col-md-1 col-sm-4">
+            <label class="form-label small">{{ t("label.target_unidoses_location") }}</label>
+            <input class="form-control form-control-sm" name="row_target" type="number" min="0" value="0" />
+          </div>
+          <div class="col-md-1 col-sm-2 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-edit-entry" data-row-id="" title="{{ t('common.remove') }}">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small">{{ t("label.renewal_date") }}</label>
+            <input class="form-control form-control-sm" name="row_renewal" type="date" />
+          </div>
+          <div class="col-md-5 col-sm-6 d-flex align-items-end">
+            <div class="form-text text-info row-plan-hint mb-1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <button type="button" id="add-edit-row" class="btn btn-sm btn-outline-success mt-1 mb-3">
+    <i class="bi bi-plus-circle"></i> {{ t("item.add_location_entry") }}
+  </button>
+
+  {% else %}
+  {# ── CREATE mode: product-level fields ── #}
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label">{{ t("label.barcode") }}</label>
-      <input
-        class="form-control"
-        name="barcode"
-        value="{{ draft.barcode or '' }}"
-        type="tel"
-        inputmode="numeric"
-        pattern="[0-9]*"
-      />
+      <input class="form-control" name="barcode" value="{{ draft.barcode or '' }}" type="tel" inputmode="numeric" pattern="[0-9]*" />
     </div>
-    {% if mode == "edit" %}
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.batch_code") }}</label>
-      <input class="form-control" name="batch_code" value="{{ draft.batch_code or '' }}" />
-    </div>
-    {% endif %}
     <div class="col-md-4">
       <label class="form-label">{{ t("label.name") }}</label>
       <input class="form-control" name="name" value="{{ draft.name or '' }}" required />
@@ -86,64 +266,6 @@
       <label class="form-label">{{ t("label.type") }}</label>
       <input class="form-control" name="item_type" value="{{ draft.item_type or 'unknown' }}" required />
     </div>
-    {% if mode == "edit" %}
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.storage_location") }}</label>
-      <select
-        class="form-select"
-        id="storage-location-select"
-        name="storage_location"
-        data-new-value="__new__"
-        required
-      >
-        <option value="" {% if not storage_location_selection %}selected{% endif %}>
-          {{ t("item.storage_location_select_existing") }}
-        </option>
-        {% for location in storage_location_options %}
-        <option value="{{ location }}"{% if storage_location_selection == location %} selected{% endif %}>
-          {{ location }}
-        </option>
-        {% endfor %}
-        <option value="__new__"{% if storage_location_selection == "__new__" %} selected{% endif %}>
-          {{ t("item.storage_location_add_new") }}
-        </option>
-      </select>
-    </div>
-    <div
-      class="col-md-4{% if storage_location_selection != '__new__' %} d-none{% endif %}"
-      id="storage-location-new-wrapper"
-    >
-      <label class="form-label">{{ t("item.storage_location_new_label") }}</label>
-      <input
-        class="form-control"
-        id="storage-location-new-input"
-        name="storage_location_new"
-        value="{{ storage_location_new_value or '' }}"
-        {% if storage_location_selection == "__new__" %}required{% endif %}
-      />
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.storage_bucket") }}</label>
-      <input class="form-control" name="storage_bucket" value="{{ draft.storage_bucket or '' }}" />
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.expiry_date") }}</label>
-      <input class="form-control" name="expiry_date" type="date" value="{{ draft.expiry_date or '' }}" required />
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.quantity") }}</label>
-      <input class="form-control" name="quantity" type="number" min="0" step="1" value="{{ draft.quantity or 0 }}" />
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.target_unidoses_location") }}</label>
-      <input class="form-control" id="target-unidoses-input" name="target_unidoses_location" type="number" min="0" step="1" value="{{ draft.target_unidoses_location or 0 }}" />
-      <div id="location-plan-hint" class="form-text text-info" style="display:none;"></div>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.renewal_date") }}</label>
-      <input class="form-control" name="renewal_date" type="date" value="{{ draft.renewal_date or '' }}" />
-    </div>
-    {% endif %}
     <div class="col-md-4">
       <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
       <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
@@ -169,13 +291,8 @@
       <select class="form-select" id="food-group-select" name="food_group">
         <option value="">—</option>
         {% for group in food_groups %}
-        <option
-          value="{{ group.key }}"
-          data-color="{{ group.color }}"
-          {% if draft.food_group == group.key %}selected{% endif %}
-        >
-          {% if lang == "pt" %}{{ group.name_pt }}{% else %}{{ group.name_en }}{% endif %}
-          ({{ group.target_pct }}%)
+        <option value="{{ group.key }}" data-color="{{ group.color }}" {% if draft.food_group == group.key %}selected{% endif %}>
+          {% if lang == "pt" %}{{ group.name_pt }}{% else %}{{ group.name_en }}{% endif %} ({{ group.target_pct }}%)
         </option>
         {% endfor %}
       </select>
@@ -185,9 +302,10 @@
       <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
     </div>
   </div>
+  {% endif %}
 
   {% if mode != "edit" %}
-  {# ── Multi-location entries ── #}
+  {# ── Multi-location entries (CREATE) ── #}
   <hr class="my-4" />
   <h2 class="h6 mb-1">{{ t("item.location_entries_title") }}</h2>
   <p class="text-muted small mb-3">{{ t("item.location_entries_hint") }}</p>
@@ -260,172 +378,107 @@
     <a class="btn btn-outline-secondary" href="/">{{ t("common.cancel") }}</a>
   </div>
 </form>
-{% if mode == "edit" and related_batches %}
-<div class="card mt-4 mb-3">
-  <div class="card-header">{{ t("product.batches") }}</div>
-  <div class="table-responsive">
-    <table class="table table-striped mb-0" data-enhanced-table>
-      <thead>
-        <tr>
-          <th>{{ t("table.batch") }}</th>
-          <th>{{ t("table.barcode") }}</th>
-          <th>{{ t("table.location") }}</th>
-          <th>{{ t("table.bucket") }}</th>
-          <th>{{ t("table.expiry") }}</th>
-          <th>{{ t("table.quantity") }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for batch in related_batches %}
-        <tr>
-          <td>{{ batch.batch_code or "-" }}</td>
-          <td>{{ batch.barcode or "-" }}</td>
-          <td>{{ batch.storage_location }}</td>
-          <td>{{ batch.storage_bucket or "-" }}</td>
-          <td>{{ batch.expiry_date }}</td>
-          <td>{{ batch.quantity }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-header">{{ t("product.movement_log") }}</div>
-  <div class="table-responsive">
-    <table class="table table-striped mb-0" data-enhanced-table>
-      <thead>
-        <tr>
-          <th>{{ t("log.time") }}</th>
-          <th>{{ t("table.batch") }}</th>
-          <th>{{ t("log.delta") }}</th>
-          <th>{{ t("log.note") }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for movement, batch in movement_rows %}
-        <tr>
-          <td>{{ movement.created_at }}</td>
-          <td>{{ batch.batch_code or "-" }}</td>
-          <td>{{ movement.delta }}</td>
-          <td>{{ movement.note or "-" }}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4" class="text-muted text-center py-3">{{ t("product.no_log") }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
 <script>
   (() => {
-    // Edit mode: storage location select + new location input
-    const select = document.getElementById("storage-location-select");
-    const newInputWrapper = document.getElementById("storage-location-new-wrapper");
-    const newInput = document.getElementById("storage-location-new-input");
-    if (select && newInputWrapper && newInput) {
-      const newValue = select.dataset.newValue || "__new__";
-      const syncStorageLocationMode = () => {
-        const isNewLocation = select.value === newValue;
-        newInputWrapper.classList.toggle("d-none", !isNewLocation);
-        newInput.required = isNewLocation;
-      };
-      select.addEventListener("change", syncStorageLocationMode);
-      syncStorageLocationMode();
-
-      // Edit mode: location plan hint
-      const plans = {{ location_plans_json | safe }};
-      const hint = document.getElementById("location-plan-hint");
-      if (hint) {
-        const updateHint = () => {
-          const loc = select.value === newValue ? newInput.value.trim() : select.value;
-          const total = plans[loc];
-          if (total) {
-            hint.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
-              .replace("{n}", total).replace("{loc}", loc);
-            hint.style.display = "";
-          } else {
-            hint.style.display = "none";
-          }
-        };
-        select.addEventListener("change", updateHint);
-        newInput.addEventListener("input", updateHint);
-        updateHint();
-      }
-    }
-  })();
-
-  (() => {
-    // Create mode: multi-location entries with select dropdown per row
-    const container = document.getElementById("location-entries");
-    const addBtn = document.getElementById("add-location-entry");
-    const tmpl = document.getElementById("loc-entry-template");
-    if (!container || !addBtn || !tmpl) return;
-
     const plans = {{ location_plans_json | safe }};
 
-    function getEffectiveLocation(entryEl) {
-      const sel = entryEl.querySelector(".loc-location-sel");
-      const newInp = entryEl.querySelector(".loc-location-new");
-      if (!sel) return "";
-      return sel.value === "__new__" ? (newInp ? newInp.value.trim() : "") : sel.value;
-    }
-
-    function updatePlanHint(entryEl) {
-      const hintEl = entryEl.querySelector(".loc-plan-hint");
-      if (!hintEl) return;
-      const loc = getEffectiveLocation(entryEl);
-      const total = plans[loc];
-      hintEl.textContent = total
-        ? "📋 {{ t('location_plan.plan_target_hint') }}".replace("{n}", total).replace("{loc}", loc)
-        : "";
-    }
-
-    function syncLocationRow(entryEl) {
-      const sel = entryEl.querySelector(".loc-location-sel");
-      const newInp = entryEl.querySelector(".loc-location-new");
-      const hidden = entryEl.querySelector(".loc-location-value");
+    // ── Shared helpers for row-location select/new-input/hidden-value ──
+    function syncRowLocation(entryEl, selClass, newClass, valClass, hintClass) {
+      const sel = entryEl.querySelector("." + selClass);
+      const newInp = entryEl.querySelector("." + newClass);
+      const hidden = entryEl.querySelector("." + valClass);
+      const hintEl = entryEl.querySelector("." + hintClass);
       if (!sel || !newInp || !hidden) return;
       const isNew = sel.value === "__new__";
       newInp.classList.toggle("d-none", !isNew);
       newInp.required = isNew;
       hidden.value = isNew ? newInp.value.trim() : sel.value;
-      hidden.required = true;
-      updatePlanHint(entryEl);
+      if (hintEl) {
+        const loc = hidden.value;
+        const total = plans[loc];
+        hintEl.textContent = total
+          ? "📋 {{ t('location_plan.plan_target_hint') }}".replace("{n}", total).replace("{loc}", loc)
+          : "";
+      }
     }
 
-    function addListeners(entryEl) {
+    // ── EDIT mode: multi-row batch table ────────────────────────────────
+    const editContainer = document.getElementById("edit-location-entries");
+    const addEditBtn = document.getElementById("add-edit-row");
+    const editTmpl = document.getElementById("edit-row-template");
+    const deleteContainer = document.getElementById("delete-ids-container");
+
+    function initEditRow(entryEl) {
+      const removeBtn = entryEl.querySelector(".remove-edit-entry");
+      if (removeBtn) {
+        removeBtn.addEventListener("click", () => {
+          if (editContainer.querySelectorAll(".edit-location-entry").length > 1) {
+            const rowId = entryEl.dataset.rowId;
+            if (rowId && deleteContainer) {
+              const inp = document.createElement("input");
+              inp.type = "hidden";
+              inp.name = "delete_ids";
+              inp.value = rowId;
+              deleteContainer.appendChild(inp);
+            }
+            entryEl.remove();
+          }
+        });
+      }
+      const sel = entryEl.querySelector(".row-location-sel");
+      const newInp = entryEl.querySelector(".row-location-new");
+      const sync = () => syncRowLocation(entryEl, "row-location-sel", "row-location-new", "row-location-value", "row-plan-hint");
+      if (sel) sel.addEventListener("change", sync);
+      if (newInp) newInp.addEventListener("input", sync);
+      sync();
+    }
+
+    if (editContainer) {
+      editContainer.querySelectorAll(".edit-location-entry").forEach(initEditRow);
+      if (addEditBtn && editTmpl) {
+        addEditBtn.addEventListener("click", () => {
+          const clone = editTmpl.content.cloneNode(true);
+          editContainer.appendChild(clone);
+          const added = editContainer.lastElementChild;
+          initEditRow(added);
+          added.querySelector(".row-location-sel")?.focus();
+        });
+      }
+    }
+
+    // ── CREATE mode: multi-location entries ────────────────────────────
+    const createContainer = document.getElementById("location-entries");
+    const addCreateBtn = document.getElementById("add-location-entry");
+    const createTmpl = document.getElementById("loc-entry-template");
+
+    function initCreateRow(entryEl) {
       const removeBtn = entryEl.querySelector(".remove-location-entry");
       if (removeBtn) {
         removeBtn.addEventListener("click", () => {
-          if (container.querySelectorAll(".location-entry").length > 1) {
+          if (createContainer.querySelectorAll(".location-entry").length > 1) {
             entryEl.remove();
           }
         });
       }
       const sel = entryEl.querySelector(".loc-location-sel");
       const newInp = entryEl.querySelector(".loc-location-new");
-      if (sel) sel.addEventListener("change", () => syncLocationRow(entryEl));
-      if (newInp) newInp.addEventListener("input", () => syncLocationRow(entryEl));
-      syncLocationRow(entryEl);
+      const sync = () => syncRowLocation(entryEl, "loc-location-sel", "loc-location-new", "loc-location-value", "loc-plan-hint");
+      if (sel) sel.addEventListener("change", sync);
+      if (newInp) newInp.addEventListener("input", sync);
+      sync();
     }
 
-    function addRow() {
-      const clone = tmpl.content.cloneNode(true);
-      const entryEl = clone.querySelector(".location-entry");
-      container.appendChild(clone);
-      const added = container.lastElementChild;
-      addListeners(added);
-      added.querySelector(".loc-location-sel")?.focus();
-      return added;
+    if (createContainer && addCreateBtn && createTmpl) {
+      function addCreateRow() {
+        const clone = createTmpl.content.cloneNode(true);
+        createContainer.appendChild(clone);
+        const added = createContainer.lastElementChild;
+        initCreateRow(added);
+        added.querySelector(".loc-location-sel")?.focus();
+      }
+      addCreateRow();
+      addCreateBtn.addEventListener("click", addCreateRow);
     }
-
-    // Add one initial row
-    addRow();
-
-    addBtn.addEventListener("click", addRow);
   })();
 </script>
 {% endblock %}
