@@ -20,6 +20,7 @@ class ItemBase(BaseModel):
     humidity_min_pct: float | None = None
     humidity_max_pct: float | None = None
     renewal_date: date | None = None
+    comment: str | None = None
 
     @field_validator("name", "item_type", "storage_location")
     @classmethod

@@ -34,14 +34,27 @@
         <div class="collapse navbar-collapse" id="main-nav">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <li class="nav-item"><a class="nav-link" href="/items/new">{{ t("nav.add_item") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="/items/import">{{ t("nav.import") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="/stock/views">{{ t("nav.stock_views") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="/renewals">{{ t("nav.renewals") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="/shopping-list">{{ t("nav.shopping_list") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="/device-check">{{ t("nav.device_check") }}</a></li>
-            {% if user and user.is_admin %}
-            <li class="nav-item"><a class="nav-link text-warning-emphasis" href="/admin/users">{{ t("nav.admin_users") }}</a></li>
-            {% endif %}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="settings-dropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >{{ t("nav.settings") }}</a>
+              <ul class="dropdown-menu" aria-labelledby="settings-dropdown">
+                <li><a class="dropdown-item" href="/items/import">{{ t("nav.import") }}</a></li>
+                <li><a class="dropdown-item" href="/device-check">{{ t("nav.device_check") }}</a></li>
+                {% if user and user.is_admin %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-warning-emphasis" href="/admin/users">{{ t("nav.admin_users") }}</a></li>
+                {% endif %}
+              </ul>
+            </li>
           </ul>
           <div class="d-flex flex-column flex-lg-row gap-2 align-items-stretch align-items-lg-center mt-2 mt-lg-0">
             <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('nav.language') }}">

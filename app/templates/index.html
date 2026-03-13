@@ -10,6 +10,7 @@
 {% endif %}
 
 <form method="post" action="/items/search" class="row g-2 mb-3">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
   <div class="col-md-8">
     <label class="form-label">{{ t("index.quick_search_label") }}</label>
     <input
@@ -17,6 +18,7 @@
       type="text"
       name="query"
       placeholder="{{ t('index.quick_search_placeholder') }}"
+      autofocus
       required
     />
   </div>
@@ -84,6 +86,7 @@
             >{{ t("common.details") }}</a>
             <a class="btn btn-sm btn-outline-primary" href="/items/{{ item.id }}/edit">{{ t("common.edit") }}</a>
             <form method="post" action="/items/{{ item.id }}/delete" class="d-inline">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
               <button class="btn btn-sm btn-outline-danger" type="submit">{{ t("common.delete") }}</button>
             </form>
           </td>

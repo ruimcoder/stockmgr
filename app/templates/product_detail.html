@@ -116,6 +116,7 @@
           <td>{{ batch.target_unidoses_location - (batch.quantity * batch.unidose_per_pack) }}</td>
           <td>
             <form method="post" action="/items/{{ batch.id }}/move" class="d-flex gap-1 flex-wrap">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
               <input type="number" min="1" step="1" name="quantity_step" value="1" class="form-control form-control-sm qty-field" />
               <input type="text" name="note" placeholder="{{ t('product.note_placeholder') }}" class="form-control form-control-sm note-field" />
               <button class="btn btn-sm btn-outline-success" name="direction" value="in" type="submit">+ {{ t("product.add") }}</button>

@@ -29,12 +29,15 @@
           <td>{% if row.is_admin %}admin{% else %}user{% endif %}</td>
           <td class="d-flex gap-1 flex-wrap">
             <form method="post" action="/admin/users/{{ row.id }}/approve">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
               <button class="btn btn-sm btn-outline-success" type="submit">{{ t("admin.approve") }}</button>
             </form>
             <form method="post" action="/admin/users/{{ row.id }}/reject">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
               <button class="btn btn-sm btn-outline-danger" type="submit">{{ t("admin.reject") }}</button>
             </form>
             <form method="post" action="/admin/users/{{ row.id }}/toggle-admin">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
               <button class="btn btn-sm btn-outline-warning" type="submit">{{ t("admin.toggle_admin") }}</button>
             </form>
           </td>

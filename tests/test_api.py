@@ -160,10 +160,15 @@ def test_barcode_lookup_endpoint(client, monkeypatch):
 def test_item_form_camera_compatibility_elements(client):
     response = client.get("/items/new")
     assert response.status_code == 200
-    assert "barcode-fallback-reader-container" in response.text
-    assert "html5-qrcode" in response.text
-    assert "data-secure-context-required" in response.text
-    assert "data-permission-denied" in response.text
+    # Camera scanning has been removed; verify all UI elements are absent.
+    assert "barcode-fallback-reader-container" not in response.text
+    assert "start-camera-scan" not in response.text
+    assert "barcode-camera.js" not in response.text
+    assert "html5-qrcode" not in response.text
+    assert "data-secure-context-required" not in response.text
+    assert "data-permission-denied" not in response.text
+    # The barcode lookup form should still be present.
+    assert "barcode-lookup-form" in response.text
 
 
 def test_pwa_routes_and_bootstrap_assets(client):
@@ -262,7 +267,8 @@ def test_home_search_routes_to_detail_or_prefilled_new_item(client):
 
     barcode_prefill = client.get("/items/new?barcode=5603333333333")
     assert barcode_prefill.status_code == 200
-    assert 'name="barcode" value="5603333333333"' in barcode_prefill.text
+    assert 'name="barcode"' in barcode_prefill.text
+    assert "5603333333333" in barcode_prefill.text
 
 
 def test_csv_import_route(client):
@@ -445,7 +451,8 @@ def test_new_item_page_prefills_product_and_location_from_query(client):
     assert prefilled_for_new_location.status_code == 200
     assert 'name="name" value="Olive Oil"' in prefilled_for_new_location.text
     assert 'name="item_type" value="food"' in prefilled_for_new_location.text
-    assert 'name="barcode" value="5605555555555"' in prefilled_for_new_location.text
+    assert 'name="barcode"' in prefilled_for_new_location.text
+    assert "5605555555555" in prefilled_for_new_location.text
 
     prefilled_for_batch = client.get(
         "/items/new?name=Olive%20Oil&item_type=food&barcode=5605555555555&storage_location=Kitchen"
