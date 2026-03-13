@@ -72,10 +72,12 @@
         pattern="[0-9]*"
       />
     </div>
+    {% if mode == "edit" %}
     <div class="col-md-4">
       <label class="form-label">{{ t("label.batch_code") }}</label>
       <input class="form-control" name="batch_code" value="{{ draft.batch_code or '' }}" />
     </div>
+    {% endif %}
     <div class="col-md-4">
       <label class="form-label">{{ t("label.name") }}</label>
       <input class="form-control" name="name" value="{{ draft.name or '' }}" required />
@@ -84,6 +86,7 @@
       <label class="form-label">{{ t("label.type") }}</label>
       <input class="form-control" name="item_type" value="{{ draft.item_type or 'unknown' }}" required />
     </div>
+    {% if mode == "edit" %}
     <div class="col-md-4">
       <label class="form-label">{{ t("label.storage_location") }}</label>
       <select
@@ -132,13 +135,18 @@
       <input class="form-control" name="quantity" type="number" min="0" step="1" value="{{ draft.quantity or 0 }}" />
     </div>
     <div class="col-md-4">
-      <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
-      <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
-    </div>
-    <div class="col-md-4">
       <label class="form-label">{{ t("label.target_unidoses_location") }}</label>
       <input class="form-control" id="target-unidoses-input" name="target_unidoses_location" type="number" min="0" step="1" value="{{ draft.target_unidoses_location or 0 }}" />
       <div id="location-plan-hint" class="form-text text-info" style="display:none;"></div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.renewal_date") }}</label>
+      <input class="form-control" name="renewal_date" type="date" value="{{ draft.renewal_date or '' }}" />
+    </div>
+    {% endif %}
+    <div class="col-md-4">
+      <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
+      <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
     </div>
     <div class="col-md-3">
       <label class="form-label">{{ t("label.temp_min") }}</label>
@@ -156,14 +164,6 @@
       <label class="form-label">{{ t("label.humidity_max") }}</label>
       <input class="form-control" name="humidity_max_pct" type="number" step="0.1" value="{{ draft.humidity_max_pct or '' }}" />
     </div>
-    <div class="col-md-4">
-      <label class="form-label">{{ t("label.renewal_date") }}</label>
-      <input class="form-control" name="renewal_date" type="date" value="{{ draft.renewal_date or '' }}" />
-    </div>
-    <div class="col-12">
-      <label class="form-label">{{ t("label.comment") }}</label>
-      <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
-    </div>
     <div class="col-md-6">
       <label class="form-label">{{ t("label.food_group") }}</label>
       <select class="form-select" id="food-group-select" name="food_group">
@@ -180,7 +180,75 @@
         {% endfor %}
       </select>
     </div>
+    <div class="col-12">
+      <label class="form-label">{{ t("label.comment") }}</label>
+      <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
+    </div>
   </div>
+
+  {% if mode != "edit" %}
+  {# ── Multi-location entries ── #}
+  <hr class="my-4" />
+  <h2 class="h6 mb-1">{{ t("item.location_entries_title") }}</h2>
+  <p class="text-muted small mb-3">{{ t("item.location_entries_hint") }}</p>
+
+  <datalist id="plan-locations-list">
+    {% for loc in plan_locations %}
+    <option value="{{ loc }}">{{ loc }}</option>
+    {% endfor %}
+  </datalist>
+
+  <div id="location-entries">
+    <div class="location-entry card mb-2">
+      <div class="card-body p-2">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small fw-semibold">{{ t("label.storage_location") }} <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" name="loc_location" list="plan-locations-list" placeholder="e.g. Pantry A" required />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">{{ t("label.batch_code") }}</label>
+            <input class="form-control form-control-sm" name="loc_batch_code" />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small fw-semibold">{{ t("label.expiry_date") }} <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" name="loc_expiry" type="date" required />
+          </div>
+          <div class="col-md-1 col-sm-4">
+            <label class="form-label small">{{ t("label.quantity") }}</label>
+            <input class="form-control form-control-sm" name="loc_quantity" type="number" min="0" value="0" />
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">{{ t("label.storage_bucket") }}</label>
+            <input class="form-control form-control-sm" name="loc_bucket" />
+          </div>
+          <div class="col-md-1 col-sm-4">
+            <label class="form-label small">{{ t("label.target_unidoses_location") }}</label>
+            <input class="form-control form-control-sm" name="loc_target" type="number" min="0" value="0" />
+          </div>
+          <div class="col-md-1 col-sm-2 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-location-entry" title="{{ t('common.remove') }}">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small">{{ t("label.renewal_date") }}</label>
+            <input class="form-control form-control-sm" name="loc_renewal" type="date" />
+          </div>
+          <div class="col-md-4 col-sm-6 d-flex align-items-end">
+            <div class="form-text text-info loc-plan-hint mb-1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button type="button" id="add-location-entry" class="btn btn-sm btn-outline-success mt-1 mb-3">
+    <i class="bi bi-plus-circle"></i> {{ t("item.add_location_entry") }}
+  </button>
+  {% endif %}
+
   <div class="d-flex gap-2 mt-4">
     <button class="btn btn-primary" type="submit">{% if mode == "edit" %}{{ t("common.save_changes") }}{% else %}{{ t("common.create_item") }}{% endif %}</button>
     <a class="btn btn-outline-secondary" href="/">{{ t("common.cancel") }}</a>
@@ -245,47 +313,96 @@
   </div>
 </div>
 {% endif %}
-{% if mode != "edit" %}
-{# Camera barcode scanning removed - not reliably supported in browser contexts. #}
-{% endif %}
 <script>
   (() => {
+    // Edit mode: storage location select + new location input
     const select = document.getElementById("storage-location-select");
     const newInputWrapper = document.getElementById("storage-location-new-wrapper");
     const newInput = document.getElementById("storage-location-new-input");
-    if (!select || !newInputWrapper || !newInput) {
-      return;
+    if (select && newInputWrapper && newInput) {
+      const newValue = select.dataset.newValue || "__new__";
+      const syncStorageLocationMode = () => {
+        const isNewLocation = select.value === newValue;
+        newInputWrapper.classList.toggle("d-none", !isNewLocation);
+        newInput.required = isNewLocation;
+      };
+      select.addEventListener("change", syncStorageLocationMode);
+      syncStorageLocationMode();
+
+      // Edit mode: location plan hint
+      const plans = {{ location_plans_json | safe }};
+      const hint = document.getElementById("location-plan-hint");
+      if (hint) {
+        const updateHint = () => {
+          const loc = select.value;
+          const total = plans[loc];
+          if (total) {
+            hint.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
+              .replace("{n}", total).replace("{loc}", loc);
+            hint.style.display = "";
+          } else {
+            hint.style.display = "none";
+          }
+        };
+        select.addEventListener("change", updateHint);
+        updateHint();
+      }
     }
-    const newValue = select.dataset.newValue || "__new__";
-    const syncStorageLocationMode = () => {
-      const isNewLocation = select.value === newValue;
-      newInputWrapper.classList.toggle("d-none", !isNewLocation);
-      newInput.required = isNewLocation;
-    };
-    select.addEventListener("change", syncStorageLocationMode);
-    syncStorageLocationMode();
   })();
 
-  // Location plan hint
   (() => {
+    // Create mode: multi-location entries
+    const container = document.getElementById("location-entries");
+    const addBtn = document.getElementById("add-location-entry");
+    if (!container || !addBtn) return;
+
     const plans = {{ location_plans_json | safe }};
-    const locationSelect = document.getElementById("storage-location-select");
-    const hint = document.getElementById("location-plan-hint");
-    if (!locationSelect || !hint) return;
-    const updateHint = () => {
-      const loc = locationSelect.value;
+
+    function updatePlanHint(entryEl) {
+      const locInput = entryEl.querySelector('input[name="loc_location"]');
+      const hintEl = entryEl.querySelector('.loc-plan-hint');
+      if (!locInput || !hintEl) return;
+      const loc = locInput.value.trim();
       const total = plans[loc];
       if (total) {
-        hint.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
+        hintEl.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
           .replace("{n}", total).replace("{loc}", loc);
-        hint.style.display = "";
       } else {
-        hint.style.display = "none";
+        hintEl.textContent = "";
       }
-    };
-    locationSelect.addEventListener("change", updateHint);
-    updateHint();
+    }
+
+    function addListeners(entryEl) {
+      const removeBtn = entryEl.querySelector(".remove-location-entry");
+      if (removeBtn) {
+        removeBtn.addEventListener("click", () => {
+          if (container.querySelectorAll(".location-entry").length > 1) {
+            entryEl.remove();
+          }
+        });
+      }
+      const locInput = entryEl.querySelector('input[name="loc_location"]');
+      if (locInput) {
+        locInput.addEventListener("input", () => updatePlanHint(entryEl));
+        locInput.addEventListener("change", () => updatePlanHint(entryEl));
+      }
+    }
+
+    container.querySelectorAll(".location-entry").forEach(addListeners);
+
+    addBtn.addEventListener("click", () => {
+      const first = container.querySelector(".location-entry");
+      if (!first) return;
+      const clone = first.cloneNode(true);
+      clone.querySelectorAll("input").forEach(inp => {
+        if (inp.type === "number") inp.value = inp.min || "0";
+        else inp.value = "";
+      });
+      clone.querySelectorAll(".loc-plan-hint").forEach(el => { el.textContent = ""; });
+      addListeners(clone);
+      container.appendChild(clone);
+      clone.querySelector('input[name="loc_location"]')?.focus();
+    });
   })();
 </script>
 {% endblock %}
-
