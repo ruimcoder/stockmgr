@@ -96,6 +96,8 @@ def _migrate_legacy_schema() -> None:
             connection.exec_driver_sql(
                 "ALTER TABLE stockitem ADD COLUMN target_unidoses_location INTEGER DEFAULT 0;"
             )
+        if "comment" not in existing_names:
+            connection.exec_driver_sql("ALTER TABLE stockitem ADD COLUMN comment TEXT;")
         connection.exec_driver_sql(
             "UPDATE stockitem SET expiry_date = date('now') WHERE expiry_date IS NULL;"
         )

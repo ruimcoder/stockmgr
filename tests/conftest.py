@@ -19,8 +19,15 @@ os.environ["EXCEL_API_KEY"] = "excel-test-key"
 os.environ["EXCEL_API_USER_EMAIL"] = "tester@example.com"
 
 from app.db import engine  # noqa: E402
-from app.main import app  # noqa: E402
+from app.main import _validate_csrf, app  # noqa: E402
 from app.models import User  # noqa: E402
+
+
+async def _bypass_csrf() -> None:
+    """Skip CSRF validation in tests."""
+
+
+app.dependency_overrides[_validate_csrf] = _bypass_csrf
 
 
 @pytest.fixture(autouse=True)

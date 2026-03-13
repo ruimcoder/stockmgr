@@ -6,6 +6,7 @@ TRANSLATIONS = {
     "en": {
         "nav.add_item": "Add Item",
         "nav.import": "Import",
+        "nav.settings": "Settings",
         "nav.stock_views": "Stock Views",
         "nav.renewals": "Renewals",
         "nav.shopping_list": "Shopping List",
@@ -108,6 +109,7 @@ TRANSLATIONS = {
         "label.humidity_min": "Humidity min (%)",
         "label.humidity_max": "Humidity max (%)",
         "label.renewal_date": "Renewal date",
+        "label.comment": "Comment / notes",
         "import.title": "Import items from CSV or Excel",
         "import.file_label": "File (.csv or .xlsx)",
         "import.button": "Import",
@@ -190,6 +192,7 @@ TRANSLATIONS = {
     "pt": {
         "nav.add_item": "Adicionar Item",
         "nav.import": "Importar",
+        "nav.settings": "Definições",
         "nav.stock_views": "Vistas de Stock",
         "nav.renewals": "Renovacoes",
         "nav.shopping_list": "Lista de Compras",
@@ -298,6 +301,7 @@ TRANSLATIONS = {
         "label.humidity_min": "Humidade minima (%)",
         "label.humidity_max": "Humidade maxima (%)",
         "label.renewal_date": "Data de renovacao",
+        "label.comment": "Comentário / notas",
         "import.title": "Importar itens por CSV ou Excel",
         "import.file_label": "Ficheiro (.csv ou .xlsx)",
         "import.button": "Importar",

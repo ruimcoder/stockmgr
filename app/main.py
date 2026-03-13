@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -48,9 +49,17 @@ settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent
 logger = logging.getLogger(__name__)
 
+_DEFAULT_SECRET_KEY = "change-me-for-production"
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.environment == "production":
+        if settings.secret_key == _DEFAULT_SECRET_KEY:
+            raise RuntimeError(
+                "SECRET_KEY is set to the default insecure value. "
+                "Set a strong SECRET_KEY environment variable before running in production."
+            )
     init_db()
     yield
 
@@ -60,7 +69,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     same_site="lax",
-    https_only=False,
+    https_only=settings.environment == "production",
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -106,6 +115,26 @@ def _current_language(request: Request) -> str:
     return lang
 
 
+def _get_or_create_csrf_token(request: Request) -> str:
+    """Return the CSRF token stored in the session, generating one if absent."""
+    token = request.session.get("_csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        request.session["_csrf_token"] = token
+    return token
+
+
+async def _validate_csrf(request: Request) -> None:
+    """Dependency: validate the CSRF token submitted with an HTML form POST."""
+    session_token = request.session.get("_csrf_token")
+    if not session_token:
+        raise HTTPException(status_code=403, detail="CSRF protection: session token missing.")
+    form = await request.form()
+    form_token = str(form.get("_csrf_token", ""))
+    if not secrets.compare_digest(session_token, form_token):
+        raise HTTPException(status_code=403, detail="CSRF protection: token mismatch.")
+
+
 def _render(
     request: Request,
     template_name: str,
@@ -118,6 +147,7 @@ def _render(
         "settings": settings,
         "lang": lang,
         "t": lambda key: translate(lang, key),
+        "csrf_token": _get_or_create_csrf_token(request),
     }
     if context:
         payload.update(context)
@@ -279,6 +309,7 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "humidity_min_pct",
         "humidity_max_pct",
         "renewal_date",
+        "comment",
     ):
         value = form.get(key)
         if key == "storage_bucket":
@@ -835,6 +866,7 @@ def search_item_from_home(
     request: Request,
     query: str = Form(...),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
 ):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
@@ -1182,6 +1214,7 @@ async def lookup_for_form(
     barcode: str = Form(...),
     item_type: str = Form("unknown"),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
 ):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
@@ -1220,7 +1253,11 @@ async def lookup_for_form(
 
 
 @app.post("/items")
-async def item_create(request: Request, session: Session = Depends(get_session)):
+async def item_create(
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
@@ -1264,7 +1301,12 @@ async def item_create(request: Request, session: Session = Depends(get_session))
 
 
 @app.post("/items/{item_id}/update")
-async def item_update(item_id: int, request: Request, session: Session = Depends(get_session)):
+async def item_update(
+    item_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
@@ -1324,6 +1366,7 @@ def adjust_stock_quantity(
     quantity_step: int = Form(1),
     note: str = Form(""),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
 ):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
@@ -1367,7 +1410,12 @@ def adjust_stock_quantity(
 
 
 @app.post("/items/{item_id}/delete")
-def item_delete(item_id: int, request: Request, session: Session = Depends(get_session)):
+def item_delete(
+    item_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
@@ -1401,6 +1449,7 @@ async def import_items(
     request: Request,
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
 ):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
@@ -1440,6 +1489,7 @@ def admin_approve_user(
     request: Request,
     session: Session = Depends(get_session),
     admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
 ):
     _ = request
     user = session.get(User, user_id)
@@ -1458,6 +1508,7 @@ def admin_reject_user(
     request: Request,
     session: Session = Depends(get_session),
     admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
 ):
     _ = request
     user = session.get(User, user_id)
@@ -1476,6 +1527,7 @@ def admin_toggle_admin(
     request: Request,
     session: Session = Depends(get_session),
     admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
 ):
     _ = request
     user = session.get(User, user_id)

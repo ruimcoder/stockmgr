@@ -5,6 +5,7 @@
 <div class="card mb-3">
   <div class="card-body">
     <form method="post" action="/items/import" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
       <div class="row g-2 align-items-end">
         <div class="col-md-8">
           <label class="form-label">{{ t("import.file_label") }}</label>

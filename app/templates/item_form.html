@@ -18,9 +18,19 @@
   <div class="card-body">
     <h2 class="h6">{{ t("item.barcode_assisted_entry") }}</h2>
     <form method="post" action="/items/lookup" class="row g-2" id="barcode-lookup-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
       <div class="col-md-4">
         <label class="form-label">{{ t("label.barcode") }}</label>
-        <input class="form-control" id="lookup-barcode-input" name="barcode" value="{{ draft.barcode or '' }}" required />
+        <input
+          class="form-control"
+          id="lookup-barcode-input"
+          name="barcode"
+          value="{{ draft.barcode or '' }}"
+          type="tel"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          required
+        />
       </div>
       <div class="col-md-4">
         <label class="form-label">{{ t("label.type") }}</label>
@@ -30,44 +40,23 @@
         <button class="btn btn-outline-primary w-100" type="submit">{{ t("item.lookup_barcode") }}</button>
       </div>
     </form>
-
-    <div class="row g-2 mt-2">
-      <div class="col-md-6">
-        <video id="barcode-camera-preview" class="w-100 rounded border" playsinline muted></video>
-        <div id="barcode-fallback-reader-container" class="d-none mt-2">
-          <div id="barcode-fallback-reader" class="border rounded"></div>
-        </div>
-      </div>
-      <div class="col-md-6 d-flex flex-column gap-2">
-        <button class="btn btn-outline-success" id="start-camera-scan" type="button">{{ t("item.start_camera_scan") }}</button>
-        <button class="btn btn-outline-secondary" id="stop-camera-scan" type="button">{{ t("item.stop_camera_scan") }}</button>
-        <div class="small text-muted">{{ t("item.camera_permission_hint") }}</div>
-        <div
-          id="barcode-scan-status"
-          class="small text-muted"
-          data-idle="{{ t('item.camera_idle') }}"
-          data-unsupported="{{ t('item.camera_unsupported') }}"
-          data-secure-context-required="{{ t('item.camera_secure_context_required') }}"
-          data-media-unsupported="{{ t('item.camera_media_unsupported') }}"
-          data-permission-denied="{{ t('item.camera_permission_denied') }}"
-          data-permission-error="{{ t('item.camera_permission_error') }}"
-          data-scanning="{{ t('item.camera_scanning') }}"
-          data-fallback-scanning="{{ t('item.camera_fallback_scanning') }}"
-          data-detected="{{ t('item.camera_detected') }}"
-        >
-          {{ t("item.camera_idle") }}
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 {% endif %}
 
 <form method="post" action="{% if mode == 'edit' %}/items/{{ draft.id }}/update{% else %}/items{% endif %}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label">{{ t("label.barcode") }}</label>
-      <input class="form-control" name="barcode" value="{{ draft.barcode or '' }}" />
+      <input
+        class="form-control"
+        name="barcode"
+        value="{{ draft.barcode or '' }}"
+        type="tel"
+        inputmode="numeric"
+        pattern="[0-9]*"
+      />
     </div>
     <div class="col-md-4">
       <label class="form-label">{{ t("label.batch_code") }}</label>
@@ -156,6 +145,10 @@
       <label class="form-label">{{ t("label.renewal_date") }}</label>
       <input class="form-control" name="renewal_date" type="date" value="{{ draft.renewal_date or '' }}" />
     </div>
+    <div class="col-12">
+      <label class="form-label">{{ t("label.comment") }}</label>
+      <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
+    </div>
   </div>
   <div class="d-flex gap-2 mt-4">
     <button class="btn btn-primary" type="submit">{% if mode == "edit" %}{{ t("common.save_changes") }}{% else %}{{ t("common.create_item") }}{% endif %}</button>
@@ -222,8 +215,7 @@
 </div>
 {% endif %}
 {% if mode != "edit" %}
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
-<script src="{{ url_for('static', path='barcode-camera.js') }}"></script>
+{# Camera barcode scanning removed - not reliably supported in browser contexts. #}
 {% endif %}
 <script>
   (() => {
