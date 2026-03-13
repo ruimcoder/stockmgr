@@ -459,7 +459,7 @@ def test_new_item_page_prefills_product_and_location_from_query(client):
     )
     assert prefilled_for_batch.status_code == 200
     assert 'id="location-entries"' in prefilled_for_batch.text
-    assert 'name="loc_location"' in prefilled_for_batch.text
+    assert 'loc-location-sel' in prefilled_for_batch.text
 
 
 def test_multi_location_create_produces_one_item_per_row(client):
@@ -546,7 +546,7 @@ def test_create_form_shows_plan_locations_datalist(client):
     page = client.get("/items/new")
     assert page.status_code == 200
     assert "StorageRoom" in page.text
-    assert 'id="plan-locations-list"' in page.text
+    assert 'loc-location-sel' in page.text
 
 
 def test_product_detail_shows_batches_grouped_by_location(client):

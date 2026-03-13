@@ -192,19 +192,23 @@
   <h2 class="h6 mb-1">{{ t("item.location_entries_title") }}</h2>
   <p class="text-muted small mb-3">{{ t("item.location_entries_hint") }}</p>
 
-  <datalist id="plan-locations-list">
-    {% for loc in plan_locations %}
-    <option value="{{ loc }}">{{ loc }}</option>
-    {% endfor %}
-  </datalist>
-
-  <div id="location-entries">
+  {# Template row (hidden, cloned by JS) — contains the select options #}
+  <template id="loc-entry-template">
     <div class="location-entry card mb-2">
       <div class="card-body p-2">
         <div class="row g-2 align-items-end">
           <div class="col-md-3 col-sm-6">
             <label class="form-label small fw-semibold">{{ t("label.storage_location") }} <span class="text-danger">*</span></label>
-            <input class="form-control form-control-sm" name="loc_location" list="plan-locations-list" placeholder="e.g. Pantry A" required />
+            <select class="form-select form-select-sm loc-location-sel" required>
+              <option value="">— {{ t("item.storage_location_select_existing") }} —</option>
+              {% for loc in plan_locations %}
+              <option value="{{ loc }}">{{ loc }}</option>
+              {% endfor %}
+              <option value="__new__">+ {{ t("item.storage_location_add_new") }}</option>
+            </select>
+            <input type="text" class="form-control form-control-sm loc-location-new mt-1 d-none"
+                   placeholder="{{ t('item.storage_location_new_label') }}" />
+            <input type="hidden" name="loc_location" class="loc-location-value" required />
           </div>
           <div class="col-md-2 col-sm-6">
             <label class="form-label small">{{ t("label.batch_code") }}</label>
@@ -237,13 +241,15 @@
             <label class="form-label small">{{ t("label.renewal_date") }}</label>
             <input class="form-control form-control-sm" name="loc_renewal" type="date" />
           </div>
-          <div class="col-md-4 col-sm-6 d-flex align-items-end">
+          <div class="col-md-5 col-sm-6 d-flex align-items-end">
             <div class="form-text text-info loc-plan-hint mb-1"></div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </template>
+
+  <div id="location-entries"></div>
   <button type="button" id="add-location-entry" class="btn btn-sm btn-outline-success mt-1 mb-3">
     <i class="bi bi-plus-circle"></i> {{ t("item.add_location_entry") }}
   </button>
@@ -334,7 +340,7 @@
       const hint = document.getElementById("location-plan-hint");
       if (hint) {
         const updateHint = () => {
-          const loc = select.value;
+          const loc = select.value === newValue ? newInput.value.trim() : select.value;
           const total = plans[loc];
           if (total) {
             hint.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
@@ -345,31 +351,49 @@
           }
         };
         select.addEventListener("change", updateHint);
+        newInput.addEventListener("input", updateHint);
         updateHint();
       }
     }
   })();
 
   (() => {
-    // Create mode: multi-location entries
+    // Create mode: multi-location entries with select dropdown per row
     const container = document.getElementById("location-entries");
     const addBtn = document.getElementById("add-location-entry");
-    if (!container || !addBtn) return;
+    const tmpl = document.getElementById("loc-entry-template");
+    if (!container || !addBtn || !tmpl) return;
 
     const plans = {{ location_plans_json | safe }};
 
+    function getEffectiveLocation(entryEl) {
+      const sel = entryEl.querySelector(".loc-location-sel");
+      const newInp = entryEl.querySelector(".loc-location-new");
+      if (!sel) return "";
+      return sel.value === "__new__" ? (newInp ? newInp.value.trim() : "") : sel.value;
+    }
+
     function updatePlanHint(entryEl) {
-      const locInput = entryEl.querySelector('input[name="loc_location"]');
-      const hintEl = entryEl.querySelector('.loc-plan-hint');
-      if (!locInput || !hintEl) return;
-      const loc = locInput.value.trim();
+      const hintEl = entryEl.querySelector(".loc-plan-hint");
+      if (!hintEl) return;
+      const loc = getEffectiveLocation(entryEl);
       const total = plans[loc];
-      if (total) {
-        hintEl.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
-          .replace("{n}", total).replace("{loc}", loc);
-      } else {
-        hintEl.textContent = "";
-      }
+      hintEl.textContent = total
+        ? "📋 {{ t('location_plan.plan_target_hint') }}".replace("{n}", total).replace("{loc}", loc)
+        : "";
+    }
+
+    function syncLocationRow(entryEl) {
+      const sel = entryEl.querySelector(".loc-location-sel");
+      const newInp = entryEl.querySelector(".loc-location-new");
+      const hidden = entryEl.querySelector(".loc-location-value");
+      if (!sel || !newInp || !hidden) return;
+      const isNew = sel.value === "__new__";
+      newInp.classList.toggle("d-none", !isNew);
+      newInp.required = isNew;
+      hidden.value = isNew ? newInp.value.trim() : sel.value;
+      hidden.required = true;
+      updatePlanHint(entryEl);
     }
 
     function addListeners(entryEl) {
@@ -381,28 +405,27 @@
           }
         });
       }
-      const locInput = entryEl.querySelector('input[name="loc_location"]');
-      if (locInput) {
-        locInput.addEventListener("input", () => updatePlanHint(entryEl));
-        locInput.addEventListener("change", () => updatePlanHint(entryEl));
-      }
+      const sel = entryEl.querySelector(".loc-location-sel");
+      const newInp = entryEl.querySelector(".loc-location-new");
+      if (sel) sel.addEventListener("change", () => syncLocationRow(entryEl));
+      if (newInp) newInp.addEventListener("input", () => syncLocationRow(entryEl));
+      syncLocationRow(entryEl);
     }
 
-    container.querySelectorAll(".location-entry").forEach(addListeners);
-
-    addBtn.addEventListener("click", () => {
-      const first = container.querySelector(".location-entry");
-      if (!first) return;
-      const clone = first.cloneNode(true);
-      clone.querySelectorAll("input").forEach(inp => {
-        if (inp.type === "number") inp.value = inp.min || "0";
-        else inp.value = "";
-      });
-      clone.querySelectorAll(".loc-plan-hint").forEach(el => { el.textContent = ""; });
-      addListeners(clone);
+    function addRow() {
+      const clone = tmpl.content.cloneNode(true);
+      const entryEl = clone.querySelector(".location-entry");
       container.appendChild(clone);
-      clone.querySelector('input[name="loc_location"]')?.focus();
-    });
+      const added = container.lastElementChild;
+      addListeners(added);
+      added.querySelector(".loc-location-sel")?.focus();
+      return added;
+    }
+
+    // Add one initial row
+    addRow();
+
+    addBtn.addEventListener("click", addRow);
   })();
 </script>
 {% endblock %}
