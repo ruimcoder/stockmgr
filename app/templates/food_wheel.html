@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-0">{{ t("food_wheel.title") }}</h1>
+    <p class="text-muted mb-0">{{ t("food_wheel.subtitle") }}</p>
+  </div>
+  <form method="get" action="/food-wheel" class="d-flex align-items-center gap-2">
+    <label class="form-label mb-0 text-nowrap">{{ t("food_wheel.filter_location") }}</label>
+    <select class="form-select form-select-sm" name="location" onchange="this.form.submit()" style="min-width:160px;">
+      <option value="">{{ t("food_wheel.all_locations") }}</option>
+      {% for loc in all_locations %}
+      <option value="{{ loc }}"{% if selected_location == loc %} selected{% endif %}>{{ loc }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if not chart_data %}
+<div class="alert alert-info">{{ t("food_wheel.no_stock") }}</div>
+{% else %}
+<div class="row g-4">
+  <div class="col-md-5 d-flex align-items-center justify-content-center">
+    <canvas id="food-wheel-chart" style="max-height:340px;"></canvas>
+  </div>
+  <div class="col-md-7">
+    <table class="table table-sm table-hover align-middle">
+      <thead>
+        <tr>
+          <th>{{ t("food_wheel.group") }}</th>
+          <th class="text-end">{{ t("food_wheel.unidoses") }}</th>
+          <th class="text-end">{{ t("food_wheel.actual_pct") }}</th>
+          <th class="text-end">{{ t("food_wheel.target_pct") }}</th>
+          <th class="text-end">{{ t("food_wheel.delta") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in chart_data %}
+        <tr>
+          <td>
+            <span class="badge rounded-pill me-1" style="background-color:{{ row.color }};width:14px;height:14px;display:inline-block;vertical-align:middle;">&nbsp;</span>
+            {{ row.label }}
+          </td>
+          <td class="text-end">{{ row.unidoses }}</td>
+          <td class="text-end">{{ row.actual_pct }}%</td>
+          <td class="text-end">{{ row.target_pct }}%</td>
+          <td class="text-end {% if row.delta >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {% if row.delta >= 0 %}+{% endif %}{{ row.delta }}%
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if ungrouped_count > 0 %}
+<div class="alert alert-warning mt-3">
+  {{ t("food_wheel.ungrouped") }}: <strong>{{ ungrouped_count }}</strong>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const data = {{ chart_json | safe }};
+  const ctx = document.getElementById("food-wheel-chart").getContext("2d");
+  new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: data.map(r => r.label),
+      datasets: [
+        {
+          label: "{{ t('food_wheel.actual') }}",
+          data: data.map(r => r.actual_pct),
+          backgroundColor: data.map(r => r.color),
+          borderWidth: 2,
+        },
+        {
+          label: "{{ t('food_wheel.target') }}",
+          data: data.map(r => r.target_pct),
+          backgroundColor: data.map(r => r.color + "55"),
+          borderWidth: 1,
+          borderDash: [4, 2],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ": " + ctx.parsed + "%";
+            },
+          },
+        },
+      },
+    },
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

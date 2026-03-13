@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import math
 import secrets
@@ -24,6 +25,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
 from app.db import get_session, init_db
+from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import StockItem, StockMovement, User
 from app.schemas import (
@@ -312,6 +314,7 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "comment",
         "image_url",
         "nutriscore",
+        "food_group",
     ):
         value = form.get(key)
         if key == "storage_bucket":
@@ -999,6 +1002,7 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
             StockItem.name,
             StockItem.item_type,
             StockItem.storage_location,
+            StockItem.food_group,
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
             func.max(StockItem.unidose_per_pack).label("unidose_per_pack"),
@@ -1009,7 +1013,7 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
 
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for row in location_rows:
-        name, item_type, location, total_u, target_u, per_pack = row
+        name, item_type, location, food_group, total_u, target_u, per_pack = row
         total_unidoses = int(total_u or 0)
         target_unidoses = int(target_u or 0)
         per_pack_value = max(1, int(per_pack or 1))
@@ -1017,9 +1021,12 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
         qty_to_buy = math.ceil(delta_unidoses / per_pack_value) if delta_unidoses else 0
         key = (name, item_type)
         if key not in grouped:
+            fg = FOOD_GROUP_BY_KEY.get(food_group) if food_group else None
             grouped[key] = {
                 "name": name,
                 "item_type": item_type,
+                "food_group": food_group,
+                "food_group_color": fg.color if fg else None,
                 "total_quantity_to_buy": 0,
                 "distribution": [],
             }
@@ -1038,6 +1045,70 @@ def device_check(request: Request, session: Session = Depends(get_session)):
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
     return _render(request, "device_check.html", {"user": maybe_user})
+
+
+@app.get("/food-wheel")
+def food_wheel_page(
+    request: Request,
+    location: str | None = None,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    # All locations for filter dropdown (unfiltered)
+    all_location_rows = session.exec(
+        select(StockItem.storage_location).distinct()
+    ).all()
+    all_locations: list[str] = sorted(loc for loc in all_location_rows if loc)
+
+    query = select(
+        StockItem.food_group,
+        StockItem.storage_location,
+        StockItem.quantity,
+        StockItem.unidose_per_pack,
+    )
+    if location:
+        query = query.where(StockItem.storage_location == location)
+    all_rows = session.exec(query).all()
+
+    items_for_chart = [
+        {"food_group": row[0], "quantity": row[2], "unidose_per_pack": row[3]}
+        for row in all_rows
+    ]
+    lang = request.session.get("language", "pt")
+    chart = food_group_chart_data(items_for_chart, language=lang)
+
+    # Normalize group_stats keys for template
+    chart_data = [
+        {
+            "label": g["label"],
+            "color": g["color"],
+            "unidoses": int(g["actual_unidoses"]),
+            "actual_pct": g["actual_pct"],
+            "target_pct": g["target_pct"],
+            "delta": g["delta_pct"],
+        }
+        for g in chart["group_stats"]
+    ]
+    ungrouped_count = sum(
+        1 for item in items_for_chart if not item["food_group"]
+    )
+
+    return _render(
+        request,
+        "food_wheel.html",
+        {
+            "user": user,
+            "chart_data": chart_data if chart["total_unidoses"] > 0 else [],
+            "chart_json": json.dumps(chart_data),
+            "ungrouped_count": ungrouped_count,
+            "all_locations": all_locations,
+            "selected_location": location or "",
+        },
+    )
 
 
 @app.get("/renewals")
@@ -1166,6 +1237,7 @@ def item_new(request: Request, session: Session = Depends(get_session)):
                 "target_unidoses_location": 0,
             },
             "lookup": None,
+            "food_groups": FOOD_GROUPS,
             **location_context,
         },
     )
@@ -1207,6 +1279,7 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
             "lookup": None,
             "related_batches": related_batches,
             "movement_rows": movement_rows,
+            "food_groups": FOOD_GROUPS,
             **location_context,
         },
     )
@@ -1226,6 +1299,11 @@ async def lookup_for_form(
     result = await barcode_service.lookup(barcode=barcode, item_type=item_type)
     draft: dict[str, Any] = {"barcode": barcode, "item_type": item_type, "quantity": 0}
     if result.found and result.data:
+        inferred_group = infer_food_group(
+            name=result.data.get("name") or "",
+            item_type=item_type if item_type != "unknown" else result.data.get("category") or "",
+            food_groups_tags=result.data.get("foodGroupsTags"),
+        )
         draft.update(
             {
                 "name": result.data.get("name"),
@@ -1239,6 +1317,7 @@ async def lookup_for_form(
                 "target_unidoses_location": 0,
                 "image_url": result.data.get("imageUrl"),
                 "nutriscore": result.data.get("nutriscore"),
+                "food_group": inferred_group,
             }
         )
     location_context = _storage_location_field_context(
@@ -1253,6 +1332,7 @@ async def lookup_for_form(
             "mode": "create",
             "draft": draft,
             "lookup": result,
+            "food_groups": FOOD_GROUPS,
             **location_context,
         },
     )
@@ -1270,6 +1350,12 @@ async def item_create(
     user = maybe_user
     form = await request.form()
     payload = _item_payload_from_form(dict(form))
+    # Auto-infer food_group from name/type if not set
+    if not payload.get("food_group"):
+        payload["food_group"] = infer_food_group(
+            name=payload.get("name") or "",
+            item_type=payload.get("item_type") or "",
+        )
     try:
         item_in = ItemCreate.model_validate(payload)
     except ValidationError as exc:
@@ -1324,6 +1410,12 @@ async def item_update(
     previous_quantity = item.quantity
     form = await request.form()
     payload = _item_payload_from_form(dict(form))
+    # Auto-infer food_group from name/type if not set
+    if not payload.get("food_group"):
+        payload["food_group"] = infer_food_group(
+            name=payload.get("name") or "",
+            item_type=payload.get("item_type") or "",
+        )
     try:
         item_in = ItemCreate.model_validate(payload)
     except ValidationError as exc:
@@ -1569,7 +1661,7 @@ async def admin_enrich_items(
     ).all()
     enriched = 0
     for item in items_with_barcode:
-        if item.image_url and item.nutriscore:
+        if item.image_url and item.nutriscore and item.food_group:
             continue
         try:
             result = await barcode_service.lookup(
@@ -1586,6 +1678,15 @@ async def admin_enrich_items(
         if not item.nutriscore and result.data.get("nutriscore"):
             item.nutriscore = result.data["nutriscore"]
             changed = True
+        if not item.food_group:
+            inferred = infer_food_group(
+                name=result.data.get("name") or item.name,
+                item_type=item.item_type,
+                food_groups_tags=result.data.get("foodGroupsTags"),
+            )
+            if inferred:
+                item.food_group = inferred
+                changed = True
         if changed:
             item.updated_at = datetime.now(UTC)
             session.add(item)
