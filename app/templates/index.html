@@ -70,7 +70,7 @@
       <tbody>
       {% for item in items %}
         <tr>
-          <td>{{ item.name }}</td>
+          <td><a class="text-decoration-none" href="{{ url_for('product_detail', item_type=item.item_type, product_name=item.name) }}">{{ item.name }}</a></td>
           <td>{{ item.item_type }}</td>
           <td>{{ item.barcode or "-" }}</td>
           <td>{{ item.batch_code or "-" }}</td>
@@ -79,15 +79,11 @@
           <td>{{ item.quantity }}</td>
           <td>{{ item.expiry_date or "-" }}</td>
           <td>{{ item.renewal_date or "-" }}</td>
-          <td class="text-end">
-            <a
-              class="btn btn-sm btn-outline-secondary"
-              href="{{ url_for('product_detail', item_type=item.item_type, product_name=item.name) }}"
-            >{{ t("common.details") }}</a>
-            <a class="btn btn-sm btn-outline-primary" href="/items/{{ item.id }}/edit">{{ t("common.edit") }}</a>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="/items/{{ item.id }}/edit" title="{{ t('common.edit') }}"><i class="bi bi-pencil"></i></a>
             <form method="post" action="/items/{{ item.id }}/delete" class="d-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-              <button class="btn btn-sm btn-outline-danger" type="submit">{{ t("common.delete") }}</button>
+              <button class="btn btn-sm btn-outline-danger" type="submit" title="{{ t('common.delete') }}" onclick="return confirm('{{ t('common.confirm_delete') }}')"><i class="bi bi-trash"></i></button>
             </form>
           </td>
         </tr>
