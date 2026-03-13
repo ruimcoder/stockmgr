@@ -115,6 +115,22 @@ def _migrate_legacy_schema() -> None:
             "UPDATE stockitem SET target_unidoses_location = COALESCE(target_unidoses_location, 0);"
         )
 
+        # locationplan table — created by create_all but ensure for older DBs
+        has_locationplan = connection.exec_driver_sql(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='locationplan';"
+        ).fetchone()
+        if not has_locationplan:
+            connection.exec_driver_sql(
+                """CREATE TABLE IF NOT EXISTS locationplan (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    location TEXT NOT NULL UNIQUE,
+                    participants INTEGER NOT NULL,
+                    stock_duration_days INTEGER NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )"""
+            )
+
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)

@@ -27,7 +27,7 @@ from app.config import get_settings
 from app.db import get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
-from app.models import StockItem, StockMovement, User
+from app.models import LocationPlan, StockItem, StockMovement, User
 from app.schemas import (
     BarcodeLookupRequest,
     BarcodeLookupResult,
@@ -35,6 +35,7 @@ from app.schemas import (
     ExcelStockUpsertRow,
     ItemCreate,
     ItemRead,
+    LocationPlanCreate,
     TelegramUpdate,
 )
 from app.services.barcode import BarcodeLookupService
@@ -940,6 +941,10 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
         return maybe_user
     user = maybe_user
 
+    plans: dict[str, LocationPlan] = {
+        p.location: p for p in session.exec(select(LocationPlan)).all()
+    }
+
     overall_query = (
         select(
             StockItem.name,
@@ -954,6 +959,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.name,
             StockItem.item_type,
             StockItem.storage_location,
+            StockItem.food_group,
             func.sum(StockItem.quantity).label("quantity"),
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
@@ -979,13 +985,41 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
         .order_by(StockItem.name, StockItem.storage_location, StockItem.expiry_date)
     )
 
+    # Enrich location_rows with plan-based target
+    raw_location = session.exec(by_location_query).all()
+    location_rows = []
+    for row in raw_location:
+        name, item_type, location, food_group, qty, total_u, target_u = row
+        plan = plans.get(location)
+        if plan and food_group:
+            fg = FOOD_GROUP_BY_KEY.get(food_group)
+            plan_target = (
+                math.ceil(plan.total_meal_occasions * fg.target_pct / 100) if fg
+                else plan.total_meal_occasions
+            )
+        elif plan:
+            plan_target = plan.total_meal_occasions
+        else:
+            plan_target = None
+        effective_target = plan_target if plan_target is not None else int(target_u or 0)
+        location_rows.append({
+            "name": name,
+            "item_type": item_type,
+            "location": location,
+            "quantity": qty,
+            "total_unidoses": int(total_u or 0),
+            "target_unidoses": effective_target,
+            "plan_target": plan_target,
+            "delta_unidoses": effective_target - int(total_u or 0),
+        })
+
     return _render(
         request,
         "stock_views.html",
         {
             "user": user,
             "overall_rows": session.exec(overall_query).all(),
-            "location_rows": session.exec(by_location_query).all(),
+            "location_rows": location_rows,
             "validity_rows": session.exec(by_location_expiry_query).all(),
         },
     )
@@ -997,6 +1031,12 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
     if isinstance(maybe_user, RedirectResponse):
         return maybe_user
     user = maybe_user
+
+    # Load location plans for plan-based target computation
+    plans: dict[str, LocationPlan] = {
+        p.location: p for p in session.exec(select(LocationPlan)).all()
+    }
+
     location_rows = session.exec(
         select(
             StockItem.name,
@@ -1015,18 +1055,29 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
     for row in location_rows:
         name, item_type, location, food_group, total_u, target_u, per_pack = row
         total_unidoses = int(total_u or 0)
-        target_unidoses = int(target_u or 0)
         per_pack_value = max(1, int(per_pack or 1))
-        delta_unidoses = max(target_unidoses - total_unidoses, 0)
+
+        # Prefer plan-based target if a plan exists for this location
+        plan = plans.get(location)
+        if plan and food_group:
+            fg = FOOD_GROUP_BY_KEY.get(food_group)
+            effective_target = (
+                math.ceil(plan.total_meal_occasions * fg.target_pct / 100) if fg
+                else plan.total_meal_occasions
+            )
+        else:
+            effective_target = int(target_u or 0)
+
+        delta_unidoses = max(effective_target - total_unidoses, 0)
         qty_to_buy = math.ceil(delta_unidoses / per_pack_value) if delta_unidoses else 0
         key = (name, item_type)
         if key not in grouped:
-            fg = FOOD_GROUP_BY_KEY.get(food_group) if food_group else None
+            fg_obj = FOOD_GROUP_BY_KEY.get(food_group) if food_group else None
             grouped[key] = {
                 "name": name,
                 "item_type": item_type,
                 "food_group": food_group,
-                "food_group_color": fg.color if fg else None,
+                "food_group_color": fg_obj.color if fg_obj else None,
                 "total_quantity_to_buy": 0,
                 "distribution": [],
             }
@@ -1037,6 +1088,125 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
     rows = [value for value in grouped.values() if value["total_quantity_to_buy"] > 0]
     rows.sort(key=lambda item: (item["name"], item["item_type"]))
     return _render(request, "shopping_list.html", {"user": user, "rows": rows})
+
+
+# ── Location plans ──────────────────────────────────────────────────────────
+
+
+@app.get("/location-plans")
+def location_plans_list(request: Request, session: Session = Depends(get_session)):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
+    return _render(
+        request,
+        "location_plans.html",
+        {
+            "user": maybe_user,
+            "plans": plans,
+            "edit_plan": None,
+            "message": _fetch_message(request),
+        },
+    )
+
+
+@app.post("/location-plans")
+async def location_plans_create(
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    form = await request.form()
+    try:
+        plan_in = LocationPlanCreate(
+            location=str(form.get("location") or ""),
+            participants=int(form.get("participants") or 1),
+            stock_duration_days=int(form.get("stock_duration_days") or 1),
+        )
+    except (ValueError, Exception) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    existing = session.exec(
+        select(LocationPlan).where(LocationPlan.location == plan_in.location)
+    ).first()
+    if existing:
+        existing.participants = plan_in.participants
+        existing.stock_duration_days = plan_in.stock_duration_days
+        existing.updated_at = datetime.now(UTC)
+        session.add(existing)
+    else:
+        session.add(LocationPlan(**plan_in.model_dump()))
+    session.commit()
+    return RedirectResponse("/location-plans?m=location-plan-saved", status_code=303)
+
+
+@app.get("/location-plans/{plan_id}/edit")
+def location_plans_edit(
+    plan_id: int, request: Request, session: Session = Depends(get_session)
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    plan = session.get(LocationPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Location plan not found.")
+    all_plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
+    return _render(
+        request,
+        "location_plans.html",
+        {"user": maybe_user, "plans": all_plans, "edit_plan": plan, "message": None},
+    )
+
+
+@app.post("/location-plans/{plan_id}/update")
+async def location_plans_update(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    plan = session.get(LocationPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Location plan not found.")
+    form = await request.form()
+    try:
+        plan_in = LocationPlanCreate(
+            location=str(form.get("location") or ""),
+            participants=int(form.get("participants") or 1),
+            stock_duration_days=int(form.get("stock_duration_days") or 1),
+        )
+    except (ValueError, Exception) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    plan.location = plan_in.location
+    plan.participants = plan_in.participants
+    plan.stock_duration_days = plan_in.stock_duration_days
+    plan.updated_at = datetime.now(UTC)
+    session.add(plan)
+    session.commit()
+    return RedirectResponse("/location-plans?m=location-plan-saved", status_code=303)
+
+
+@app.post("/location-plans/{plan_id}/delete")
+async def location_plans_delete(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    plan = session.get(LocationPlan, plan_id)
+    if plan:
+        session.delete(plan)
+        session.commit()
+    return RedirectResponse("/location-plans?m=location-plan-deleted", status_code=303)
 
 
 @app.get("/device-check")
@@ -1238,6 +1408,10 @@ def item_new(request: Request, session: Session = Depends(get_session)):
             },
             "lookup": None,
             "food_groups": FOOD_GROUPS,
+            "location_plans_json": json.dumps(
+                {p.location: p.total_meal_occasions
+                 for p in session.exec(select(LocationPlan)).all()}
+            ),
             **location_context,
         },
     )
@@ -1280,6 +1454,10 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
             "related_batches": related_batches,
             "movement_rows": movement_rows,
             "food_groups": FOOD_GROUPS,
+            "location_plans_json": json.dumps(
+                {p.location: p.total_meal_occasions
+                 for p in session.exec(select(LocationPlan)).all()}
+            ),
             **location_context,
         },
     )
@@ -1333,6 +1511,10 @@ async def lookup_for_form(
             "draft": draft,
             "lookup": result,
             "food_groups": FOOD_GROUPS,
+            "location_plans_json": json.dumps(
+                {p.location: p.total_meal_occasions
+                 for p in session.exec(select(LocationPlan)).all()}
+            ),
             **location_context,
         },
     )
@@ -1356,6 +1538,16 @@ async def item_create(
             name=payload.get("name") or "",
             item_type=payload.get("item_type") or "",
         )
+    # Auto-compute target_unidoses_location from location plan if not set
+    if not payload.get("target_unidoses_location"):
+        loc = payload.get("storage_location") or ""
+        plan = session.exec(select(LocationPlan).where(LocationPlan.location == loc)).first()
+        if plan and payload.get("food_group"):
+            fg = FOOD_GROUP_BY_KEY.get(payload["food_group"])
+            if fg:
+                payload["target_unidoses_location"] = math.ceil(
+                    plan.total_meal_occasions * fg.target_pct / 100
+                )
     try:
         item_in = ItemCreate.model_validate(payload)
     except ValidationError as exc:
@@ -1416,6 +1608,16 @@ async def item_update(
             name=payload.get("name") or "",
             item_type=payload.get("item_type") or "",
         )
+    # Auto-compute target_unidoses_location from location plan if not set
+    if not payload.get("target_unidoses_location"):
+        loc = payload.get("storage_location") or ""
+        plan = session.exec(select(LocationPlan).where(LocationPlan.location == loc)).first()
+        if plan and payload.get("food_group"):
+            fg = FOOD_GROUP_BY_KEY.get(payload["food_group"])
+            if fg:
+                payload["target_unidoses_location"] = math.ceil(
+                    plan.total_meal_occasions * fg.target_pct / 100
+                )
     try:
         item_in = ItemCreate.model_validate(payload)
     except ValidationError as exc:

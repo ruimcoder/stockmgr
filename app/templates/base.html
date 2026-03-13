@@ -49,6 +49,8 @@
                 aria-expanded="false"
               >{{ t("nav.settings") }}</a>
               <ul class="dropdown-menu" aria-labelledby="settings-dropdown">
+                <li><a class="dropdown-item" href="/location-plans">{{ t("nav.location_plans") }}</a></li>
+                <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="/items/import">{{ t("nav.import") }}</a></li>
                 <li><a class="dropdown-item" href="/device-check">{{ t("nav.device_check") }}</a></li>
                 {% if user and user.is_admin %}

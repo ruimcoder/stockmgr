@@ -4,6 +4,20 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class LocationPlanCreate(BaseModel):
+    location: str = Field(min_length=1)
+    participants: int = Field(ge=1)
+    stock_duration_days: int = Field(ge=1)
+
+    @field_validator("location")
+    @classmethod
+    def non_empty_location(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Location cannot be empty.")
+        return trimmed
+
+
 class ItemBase(BaseModel):
     barcode: str | None = None
     batch_code: str | None = None
