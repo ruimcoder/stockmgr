@@ -46,6 +46,32 @@ class StockItem(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
 
 
+class LocationPlan(SQLModel, table=True):
+    """Stores per-location planning data: participants and supply duration."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    location: str = Field(unique=True, index=True, nullable=False)
+    participants: int = Field(ge=1, nullable=False)
+    stock_duration_days: int = Field(ge=1, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+
+    @property
+    def main_meals_total(self) -> int:
+        """Total main meal occasions (2 per person per day)."""
+        return self.participants * self.stock_duration_days * 2
+
+    @property
+    def snack_meals_total(self) -> int:
+        """Total snack/breakfast occasions (2 per person per day)."""
+        return self.participants * self.stock_duration_days * 2
+
+    @property
+    def total_meal_occasions(self) -> int:
+        """Total meal occasions (4 per person per day: 2 main + 2 snack)."""
+        return self.participants * self.stock_duration_days * 4
+
+
 class StockMovement(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     stock_item_id: int = Field(foreign_key="stockitem.id", index=True, nullable=False)

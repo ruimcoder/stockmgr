@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 mb-0">{{ t("location_plan.title") }}</h1>
+    <p class="text-muted mb-0">{{ t("location_plan.subtitle") }}</p>
+  </div>
+</div>
+
+{% if message %}
+<div class="alert alert-success py-2">{{ t("msg." ~ message) }}</div>
+{% endif %}
+
+<!-- Create / Edit form -->
+<div class="card mb-4">
+  <div class="card-header">
+    {% if edit_plan %}{{ t("location_plan.edit_title") }}{% else %}{{ t("location_plan.add") }}{% endif %}
+  </div>
+  <div class="card-body">
+    <form method="post" action="{% if edit_plan %}/location-plans/{{ edit_plan.id }}/update{% else %}/location-plans{% endif %}" class="row g-3">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">{{ t("location_plan.location") }}</label>
+        <input
+          class="form-control"
+          name="location"
+          value="{{ edit_plan.location if edit_plan else '' }}"
+          required
+          {% if edit_plan %}readonly{% endif %}
+        />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">{{ t("location_plan.participants") }}</label>
+        <input
+          class="form-control"
+          name="participants"
+          type="number"
+          min="1"
+          step="1"
+          value="{{ edit_plan.participants if edit_plan else 1 }}"
+          required
+        />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">{{ t("location_plan.duration_days") }}</label>
+        <input
+          class="form-control"
+          name="stock_duration_days"
+          type="number"
+          min="1"
+          step="1"
+          value="{{ edit_plan.stock_duration_days if edit_plan else 1 }}"
+          required
+        />
+      </div>
+      <div class="col-md-2 d-flex align-items-end gap-2">
+        <button class="btn btn-primary" type="submit">
+          {% if edit_plan %}{{ t("common.save_changes") }}{% else %}{{ t("location_plan.add") }}{% endif %}
+        </button>
+        {% if edit_plan %}
+        <a class="btn btn-outline-secondary" href="/location-plans">{{ t("common.cancel") }}</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Plans table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped table-hover mb-0" data-enhanced-table>
+      <thead>
+        <tr>
+          <th>{{ t("location_plan.location") }}</th>
+          <th>{{ t("location_plan.participants") }}</th>
+          <th>{{ t("location_plan.duration_days") }}</th>
+          <th>{{ t("location_plan.main_meals") }}</th>
+          <th>{{ t("location_plan.snack_meals") }}</th>
+          <th>{{ t("location_plan.total_occasions") }}</th>
+          <th data-sortable="false" data-filterable="false"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in plans %}
+        <tr>
+          <td><strong>{{ plan.location }}</strong></td>
+          <td>{{ plan.participants }}</td>
+          <td>{{ plan.stock_duration_days }}</td>
+          <td>{{ plan.main_meals_total }}</td>
+          <td>{{ plan.snack_meals_total }}</td>
+          <td><span class="badge bg-primary fs-6">{{ plan.total_meal_occasions }}</span></td>
+          <td class="text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="/location-plans/{{ plan.id }}/edit" title="{{ t('common.edit') }}"><i class="bi bi-pencil"></i></a>
+            <form method="post" action="/location-plans/{{ plan.id }}/delete" class="d-inline">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+              <button class="btn btn-sm btn-outline-danger" type="submit" title="{{ t('common.delete') }}" onclick="return confirm('{{ t('common.confirm_delete') }}')"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">{{ t("location_plan.no_plans") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

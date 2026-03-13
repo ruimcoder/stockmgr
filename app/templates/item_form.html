@@ -137,7 +137,8 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">{{ t("label.target_unidoses_location") }}</label>
-      <input class="form-control" name="target_unidoses_location" type="number" min="0" step="1" value="{{ draft.target_unidoses_location or 0 }}" />
+      <input class="form-control" id="target-unidoses-input" name="target_unidoses_location" type="number" min="0" step="1" value="{{ draft.target_unidoses_location or 0 }}" />
+      <div id="location-plan-hint" class="form-text text-info" style="display:none;"></div>
     </div>
     <div class="col-md-3">
       <label class="form-label">{{ t("label.temp_min") }}</label>
@@ -263,6 +264,27 @@
     };
     select.addEventListener("change", syncStorageLocationMode);
     syncStorageLocationMode();
+  })();
+
+  // Location plan hint
+  (() => {
+    const plans = {{ location_plans_json | safe }};
+    const locationSelect = document.getElementById("storage-location-select");
+    const hint = document.getElementById("location-plan-hint");
+    if (!locationSelect || !hint) return;
+    const updateHint = () => {
+      const loc = locationSelect.value;
+      const total = plans[loc];
+      if (total) {
+        hint.textContent = "📋 {{ t('location_plan.plan_target_hint') }}"
+          .replace("{n}", total).replace("{loc}", loc);
+        hint.style.display = "";
+      } else {
+        hint.style.display = "none";
+      }
+    };
+    locationSelect.addEventListener("change", updateHint);
+    updateHint();
   })();
 </script>
 {% endblock %}
