@@ -789,3 +789,44 @@ def test_excel_api_update_and_upsert(client):
     assert body["updated"] == 1
     assert body["created"] == 1
     assert len(body["rows"]) == 2
+
+
+def test_home_page_with_slash_in_product_name(client):
+    """Home page must render without 500 when a product name contains '/'."""
+    client.post(
+        "/api/items",
+        json={
+            "barcode": "5600000000099",
+            "name": "Olive/Oil",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "expiry_date": "2030-06-01",
+            "quantity": 1,
+            "unidose_per_pack": 1,
+        },
+    )
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Olive/Oil" in response.text
+
+
+def test_product_detail_with_slash_in_name(client):
+    """Product detail page resolves correctly for names containing '/'."""
+    from urllib.parse import quote
+
+    client.post(
+        "/api/items",
+        json={
+            "barcode": "5600000000098",
+            "name": "Beans/Legumes",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "expiry_date": "2030-07-01",
+            "quantity": 2,
+            "unidose_per_pack": 1,
+        },
+    )
+    encoded = quote("Beans/Legumes", safe="")
+    response = client.get(f"/products/by-name/food/{encoded}")
+    assert response.status_code == 200
+    assert "Beans/Legumes" in response.text

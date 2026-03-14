@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote as url_quote
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
@@ -76,6 +77,7 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.filters["urlencode_path"] = lambda v: url_quote(str(v), safe="")
 
 oauth = OAuth()
 if settings.google_client_id and settings.google_client_secret:
@@ -915,12 +917,14 @@ def search_item_from_home(
             .order_by(StockItem.expiry_date, StockItem.updated_at.desc())
         ).first()
         if barcode_match:
-            detail_url = request.url_for(
-                "product_detail",
-                item_type=barcode_match.item_type,
-                product_name=barcode_match.name,
+            detail_url = (
+                str(request.base_url).rstrip("/")
+                + "/products/by-name/"
+                + url_quote(barcode_match.item_type, safe="")
+                + "/"
+                + url_quote(barcode_match.name, safe="")
             )
-            return RedirectResponse(str(detail_url), status_code=303)
+            return RedirectResponse(detail_url, status_code=303)
 
         new_item_url = f"{request.url_for('item_new')}?{urlencode({'barcode': barcode_value})}"
         return RedirectResponse(new_item_url, status_code=303)
@@ -944,12 +948,14 @@ def search_item_from_home(
         ).first()
 
     if name_match:
-        detail_url = request.url_for(
-            "product_detail",
-            item_type=name_match.item_type,
-            product_name=name_match.name,
+        detail_url = (
+            str(request.base_url).rstrip("/")
+            + "/products/by-name/"
+            + url_quote(name_match.item_type, safe="")
+            + "/"
+            + url_quote(name_match.name, safe="")
         )
-        return RedirectResponse(str(detail_url), status_code=303)
+        return RedirectResponse(detail_url, status_code=303)
 
     new_item_url = f"{request.url_for('item_new')}?{urlencode({'name': search_value})}"
     return RedirectResponse(new_item_url, status_code=303)
@@ -1335,7 +1341,7 @@ def renewal_plan(
     )
 
 
-@app.get("/products/by-name/{item_type}/{product_name}")
+@app.get("/products/by-name/{item_type}/{product_name:path}")
 def product_detail(
     item_type: str,
     product_name: str,

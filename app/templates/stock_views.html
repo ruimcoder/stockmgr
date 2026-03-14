@@ -35,7 +35,7 @@
         <tbody>
           {% for row in overall_rows %}
           <tr>
-            <td><a class="text-decoration-none" href="{{ url_for('product_detail', item_type=row[1], product_name=row[0]) }}">{{ row[0] }}</a></td>
+            <td><a class="text-decoration-none" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}">{{ row[0] }}</a></td>
             <td>{{ row[1] }}</td>
             <td>{{ row[2] }}</td>
           </tr>
@@ -66,7 +66,7 @@
         <tbody>
           {% for row in location_rows %}
           <tr>
-            <td><a class="text-decoration-none" href="{{ url_for('product_detail', item_type=row.item_type, product_name=row.name) }}">{{ row.name }}</a></td>
+            <td><a class="text-decoration-none" href="/products/by-name/{{ row.item_type | urlencode_path }}/{{ row.name | urlencode_path }}">{{ row.name }}</a></td>
             <td>{{ row.item_type }}</td>
             <td>{{ row.location }}</td>
             <td>{{ row.quantity }}</td>
@@ -100,7 +100,7 @@
         <tbody>
           {% for row in validity_rows %}
           <tr>
-            <td><a class="text-decoration-none" href="{{ url_for('product_detail', item_type=row[1], product_name=row[0]) }}">{{ row[0] }}</a></td>
+            <td><a class="text-decoration-none" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}">{{ row[0] }}</a></td>
             <td>{{ row[1] }}</td>
             <td>{{ row[2] }}</td>
             <td>{{ row[3] }}</td>
