@@ -70,7 +70,7 @@
       <tbody>
       {% for item in items %}
         <tr>
-          <td><a class="text-decoration-none" href="{{ url_for('product_detail', item_type=item.item_type, product_name=item.name) }}">{{ item.name }}</a></td>
+          <td><a class="text-decoration-none" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}">{{ item.name }}</a></td>
           <td>{{ item.item_type }}</td>
           <td>{{ item.barcode or "-" }}</td>
           <td>{{ item.batch_code or "-" }}</td>
