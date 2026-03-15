@@ -2128,11 +2128,11 @@ async def upload_item_image(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
 
-    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    allowed_types = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=422, detail="Only JPEG, PNG, WebP and GIF images are allowed.")
 
-    suffix = Path(file.filename or "image.jpg").suffix.lower() or ".jpg"
+    suffix = allowed_types[file.content_type]
     filename = f"item_{item_id}_{secrets.token_hex(8)}{suffix}"
     dest = _MEDIA_DIR / filename
     dest.write_bytes(await file.read())
@@ -2141,7 +2141,8 @@ async def upload_item_image(
     item.updated_at = datetime.now(UTC)
     session.add(item)
     session.commit()
-    return RedirectResponse(f"/items/{item_id}/edit?m=image-updated", status_code=303)
+    safe_id = int(item_id)
+    return RedirectResponse(f"/items/{safe_id}/edit?m=image-updated", status_code=303)
 
 
 @app.get("/items/import")
