@@ -1603,6 +1603,49 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
     )
 
 
+@app.get("/items/lookup-json")
+async def lookup_json(
+    request: Request,
+    barcode: str,
+    item_type: str = "unknown",
+    session: Session = Depends(get_session),
+):
+    """AJAX barcode lookup — returns enriched JSON for the new-item form (no page refresh)."""
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "unauthenticated"}, status_code=401)
+
+    result = await barcode_service.lookup(barcode=barcode, item_type=item_type)
+    payload: dict[str, Any] = {
+        "found": result.found,
+        "provider": result.provider,
+        "attempts": [
+            {"provider": a.provider, "status": a.status}
+            for a in (result.attempts or [])
+        ],
+    }
+    if result.found and result.data:
+        inferred_group = infer_food_group(
+            name=result.data.get("name") or "",
+            item_type=item_type if item_type != "unknown" else result.data.get("category") or "",
+            food_groups_tags=result.data.get("foodGroupsTags"),
+        )
+        wc, uom = _parse_size(result.data.get("size"))
+        payload.update({
+            "barcode": barcode,
+            "name": result.data.get("name"),
+            "item_type": item_type if item_type != "unknown" else (result.data.get("category") or "unknown"),
+            "image_url": result.data.get("imageUrl"),
+            "nutriscore": result.data.get("nutriscore"),
+            "food_group": inferred_group,
+            "weight_capacity": wc,
+            "uom": uom,
+        })
+    from fastapi.responses import JSONResponse
+    return JSONResponse(payload)
+
+
 @app.post("/items/lookup")
 async def lookup_for_form(
     request: Request,

@@ -18,57 +18,43 @@
 </div>
 {% endif %}
 
-{% if lookup %}
-  {% if lookup.found %}
-    <div class="alert alert-success py-2">
-      {{ t("item.lookup_found") }} <strong>{{ lookup.provider }}</strong>.
-    </div>
-  {% else %}
-    <div class="alert alert-warning py-2">{{ t("item.lookup_not_found") }}</div>
-  {% endif %}
-{% endif %}
-
 {% if mode != "edit" %}
 <div class="card mb-3">
   <div class="card-body">
     <h2 class="h6">{{ t("item.barcode_assisted_entry") }}</h2>
-    <form method="post" action="/items/lookup" class="row g-2" id="barcode-lookup-form">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+    {# AJAX lookup — no page refresh #}
+    <div class="row g-2" id="barcode-lookup-form">
       <div class="col-md-4">
         <label class="form-label">{{ t("label.barcode") }}</label>
         <input
           class="form-control"
           id="lookup-barcode-input"
-          name="barcode"
           value="{{ draft.barcode or '' }}"
           type="tel"
           inputmode="numeric"
           pattern="[0-9]*"
-          required
         />
       </div>
       <div class="col-md-4">
         <label class="form-label">{{ t("label.type") }}</label>
-        <input class="form-control" id="lookup-item-type-input" name="item_type" value="{{ draft.item_type or 'unknown' }}" />
+        <input class="form-control" id="lookup-item-type-input" value="{{ draft.item_type or 'unknown' }}" />
       </div>
       <div class="col-md-4 d-flex align-items-end">
-        <button class="btn btn-outline-primary w-100" type="submit">{{ t("item.lookup_barcode") }}</button>
+        <button class="btn btn-outline-primary w-100" id="lookup-btn" type="button">{{ t("item.lookup_barcode") }}</button>
       </div>
-    </form>
+    </div>
+    <div id="lookup-status" class="mt-2"></div>
   </div>
 </div>
 {% endif %}
 
-{% if lookup and lookup.found and draft.image_url %}
-<div class="mb-3 d-flex align-items-center gap-3">
-  <img src="{{ draft.image_url }}" alt="{{ draft.name or 'product' }}" class="rounded border" style="max-height:100px;max-width:100px;object-fit:contain;" />
-  {% if draft.nutriscore %}
-  <span class="badge fs-6 text-uppercase" style="background:var(--bs-{% if draft.nutriscore == 'a' %}success{% elif draft.nutriscore == 'b' %}success{% elif draft.nutriscore == 'c' %}warning{% elif draft.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">
-    {{ t("label.nutriscore") }}: {{ draft.nutriscore | upper }}
+{# Product image / nutriscore shown after lookup #}
+<div id="lookup-image-row" class="mb-3 d-flex align-items-center gap-3 {% if not (lookup and lookup.found and draft.image_url) %}d-none{% endif %}">
+  <img id="lookup-product-img" src="{{ draft.image_url or '' }}" alt="{{ draft.name or 'product' }}" class="rounded border" style="max-height:100px;max-width:100px;object-fit:contain;" />
+  <span id="lookup-nutriscore-badge" class="badge fs-6 text-uppercase {% if not draft.nutriscore %}d-none{% endif %}" style="background:var(--bs-{% if draft.nutriscore == 'a' or draft.nutriscore == 'b' %}success{% elif draft.nutriscore == 'c' %}warning{% elif draft.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">
+    {{ t("label.nutriscore") }}: <span id="lookup-nutriscore-val">{{ (draft.nutriscore or '') | upper }}</span>
   </span>
-  {% endif %}
 </div>
-{% endif %}
 
 <form method="post" action="{% if mode == 'edit' %}/items/{{ draft.id }}/update{% else %}/items{% endif %}">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
@@ -698,17 +684,125 @@
       }, true);
     }
 
-    // Auto-submit barcode lookup if pre-filled on page load (issue #57)
-    // Only trigger if no lookup result yet — prevents infinite reload loop
+    // ── AJAX barcode lookup (no page refresh) ────────────────────────────────
     const lookupInput = document.getElementById("lookup-barcode-input");
-    const lookupForm = document.getElementById("barcode-lookup-form");
-    const lookupAlreadyDone = {{ "true" if lookup and lookup.found else "false" }};
-    if (lookupInput && lookupForm && lookupInput.value.trim() && !lookupAlreadyDone) {
-      // Small delay to allow page to fully render
-      setTimeout(() => lookupForm.requestSubmit(), 100);
-    } else if (lookupInput && !lookupInput.value.trim()) {
-      // #64: focus barcode field when empty so user can start scanning/typing
-      lookupInput.focus();
+    const lookupTypeInput = document.getElementById("lookup-item-type-input");
+    const lookupBtn = document.getElementById("lookup-btn");
+    const lookupStatus = document.getElementById("lookup-status");
+    const overlay = document.getElementById("lookup-overlay");
+    const overlayProviderEl = document.getElementById("overlay-provider");
+    const allProviders = {{ (lookup_providers or []) | tojson }};
+
+    function nsColor(ns) {
+      if (ns === "a" || ns === "b") return "success";
+      if (ns === "c") return "warning";
+      if (ns === "d") return "danger";
+      return "secondary";
+    }
+
+    function fillFormFromResult(data) {
+      const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+      const setName = document.querySelector("input[name='name']");
+      if (setName && data.name) setName.value = data.name;
+      const setType = document.querySelector("input[name='item_type']");
+      if (setType && data.item_type && data.item_type !== "unknown") setType.value = data.item_type;
+      const setBarcode = document.querySelector("input[name='barcode']");
+      if (setBarcode && data.barcode) setBarcode.value = data.barcode;
+      // image_url field
+      const imgUrlInput = document.getElementById("image-url-input");
+      if (imgUrlInput && data.image_url) imgUrlInput.value = data.image_url;
+      // product image preview
+      const imgRow = document.getElementById("lookup-image-row");
+      const imgEl = document.getElementById("lookup-product-img");
+      if (imgRow && imgEl && data.image_url) {
+        imgEl.src = data.image_url;
+        imgRow.classList.remove("d-none");
+      }
+      // nutriscore select
+      const nsSelect = document.querySelector("select[name='nutriscore']");
+      if (nsSelect && data.nutriscore) nsSelect.value = data.nutriscore;
+      // nutriscore badge
+      const nsBadge = document.getElementById("lookup-nutriscore-badge");
+      const nsVal = document.getElementById("lookup-nutriscore-val");
+      if (nsBadge && nsVal && data.nutriscore) {
+        nsVal.textContent = data.nutriscore.toUpperCase();
+        nsBadge.style.background = "var(--bs-" + nsColor(data.nutriscore) + ")";
+        nsBadge.classList.remove("d-none");
+      }
+      // food_group hidden
+      const fgHidden = document.getElementById("food-group-hidden");
+      if (fgHidden && data.food_group) {
+        fgHidden.value = data.food_group;
+        const fgSelect = document.getElementById("food-group-select");
+        if (fgSelect) fgSelect.value = data.food_group;
+      }
+      // weight / uom
+      const wcInput = document.querySelector("input[name='weight_capacity']");
+      if (wcInput && data.weight_capacity != null) wcInput.value = data.weight_capacity;
+      const uomInput = document.querySelector("input[name='uom']");
+      if (uomInput && data.uom) uomInput.value = data.uom;
+    }
+
+    async function doLookup() {
+      const barcode = (lookupInput ? lookupInput.value.trim() : "");
+      if (!barcode) { if (lookupInput) lookupInput.focus(); return; }
+      const itemType = lookupTypeInput ? lookupTypeInput.value.trim() : "unknown";
+
+      // Show overlay + start provider animation
+      if (overlay) overlay.classList.remove("d-none");
+      if (lookupStatus) lookupStatus.innerHTML = "";
+      let idx = 0, timer = null;
+      if (overlayProviderEl && allProviders.length) {
+        overlayProviderEl.textContent = allProviders[0];
+        timer = setInterval(() => {
+          idx = (idx + 1) % allProviders.length;
+          overlayProviderEl.textContent = allProviders[idx];
+        }, 800);
+      }
+
+      try {
+        const url = `/items/lookup-json?barcode=${encodeURIComponent(barcode)}&item_type=${encodeURIComponent(itemType)}`;
+        const res = await fetch(url, { credentials: "same-origin" });
+        const data = await res.json();
+        clearInterval(timer);
+        if (overlay) overlay.classList.add("d-none");
+
+        // Show actual providers tried in status area
+        if (lookupStatus && data.attempts) {
+          const pills = data.attempts.map(a => {
+            const ok = a.status === "success";
+            const skip = a.status === "skipped";
+            const cls = ok ? "bg-success" : skip ? "bg-secondary" : "bg-danger";
+            return `<span class="badge ${cls} me-1">${a.provider}</span>`;
+          }).join("");
+          lookupStatus.innerHTML = pills;
+        }
+
+        if (data.found) {
+          fillFormFromResult(data);
+          if (lookupStatus) lookupStatus.insertAdjacentHTML("beforeend",
+            `<div class="alert alert-success py-1 mt-2 mb-0">{{ t("item.lookup_found") }} <strong>${data.provider}</strong>.</div>`);
+        } else {
+          if (lookupStatus) lookupStatus.insertAdjacentHTML("beforeend",
+            `<div class="alert alert-warning py-1 mt-2 mb-0">{{ t("item.lookup_not_found") }}</div>`);
+        }
+      } catch (err) {
+        clearInterval(timer);
+        if (overlay) overlay.classList.add("d-none");
+        if (lookupStatus) lookupStatus.innerHTML = `<div class="alert alert-danger py-1 mt-2 mb-0">Lookup error: ${err.message}</div>`;
+      }
+    }
+
+    if (lookupBtn) lookupBtn.addEventListener("click", doLookup);
+    if (lookupInput) {
+      lookupInput.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); doLookup(); } });
+      // Auto-trigger if barcode pre-filled on page load
+      if (lookupInput.value.trim()) {
+        setTimeout(doLookup, 150);
+      } else {
+        // #64: focus barcode field when empty
+        lookupInput.focus();
+      }
     }
 
     // #66: persist "continue adding" checkbox state via localStorage
@@ -719,41 +813,6 @@
       continueCheck.addEventListener("change", () => {
         localStorage.setItem(STORAGE_KEY, continueCheck.checked ? "1" : "0");
       });
-    }
-  })();
-
-  // ── Lookup progress overlay (issue #73) ──────────────────────────────────
-  (() => {
-    const overlay = document.getElementById("lookup-overlay");
-    const overlayProvider = document.getElementById("overlay-provider");
-    const lookupFormOvl = document.getElementById("barcode-lookup-form");
-    if (!overlay || !lookupFormOvl) return;
-
-    const providers = {{ (lookup_providers or []) | tojson }};
-    let providerTimer = null;
-
-    function showOverlay() {
-      overlay.classList.remove("d-none");
-      // The overlay covers the screen — no need to disable inputs (would prevent submission)
-      // Cycle through provider names as visual progress cue
-      let idx = 0;
-      if (providers.length && overlayProvider) {
-        overlayProvider.textContent = providers[0];
-        providerTimer = setInterval(() => {
-          idx = (idx + 1) % providers.length;
-          overlayProvider.textContent = providers[idx];
-        }, 800);
-      }
-    }
-
-    lookupFormOvl.addEventListener("submit", showOverlay);
-
-    // Also show overlay when auto-submitting on page load
-    const lookupInputOvl = document.getElementById("lookup-barcode-input");
-    const lookupAlreadyDoneOvl = {{ "true" if lookup and lookup.found else "false" }};
-    if (lookupInputOvl && lookupInputOvl.value.trim() && !lookupAlreadyDoneOvl) {
-      // Will be triggered by the auto-submit setTimeout above — show overlay after same delay
-      setTimeout(showOverlay, 150);
     }
   })();
 
