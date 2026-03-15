@@ -74,6 +74,7 @@ TRANSLATIONS = {
         "item.edit_title": "Edit Item",
         "item.lookup_found": "Barcode match found via",
         "item.lookup_not_found": "No barcode match found. You can still enter details manually.",
+        "item.lookup_searching": "Searching providers…",
         "item.barcode_assisted_entry": "Barcode-assisted entry",
         "item.lookup_barcode": "Lookup Barcode",
         "item.start_camera_scan": "Start Camera Scan",
@@ -351,6 +352,7 @@ TRANSLATIONS = {
         "item.lookup_not_found": (
             "Nao foi encontrada correspondencia. Pode inserir os dados manualmente."
         ),
+        "item.lookup_searching": "A pesquisar fornecedores…",
         "item.barcode_assisted_entry": "Entrada assistida por codigo de barras",
         "item.lookup_barcode": "Pesquisar codigo",
         "item.start_camera_scan": "Iniciar leitura com camera",

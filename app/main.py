@@ -504,6 +504,22 @@ def _plan_locations(session: Session) -> list[str]:
     return result
 
 
+def _lookup_provider_names() -> list[str]:
+    """Return display names of all enabled barcode providers, in chain order."""
+    cfg = barcode_service.config
+    providers = cfg.get("providers", {})
+    seen: set[str] = set()
+    names: list[str] = []
+    for chain in cfg.get("lookup", {}).get("chains", {}).values():
+        for pid in chain:
+            if pid not in seen:
+                seen.add(pid)
+                p = providers.get(pid, {})
+                if p.get("enabled") and p.get("displayName"):
+                    names.append(p["displayName"])
+    return names
+
+
 def _upsert_location_plan(session: Session, *, location: str, participants: int, stock_duration_days: int) -> None:
     """Create or update a LocationPlan for the given location."""
     location = location.strip()
@@ -1551,6 +1567,7 @@ def item_new(request: Request, session: Session = Depends(get_session)):
             "food_groups": FOOD_GROUPS,
             "plan_locations": _plan_locations(session),
             "location_plans_json": json.dumps(plans_map),
+            "lookup_providers": _lookup_provider_names(),
         },
     )
 
@@ -1638,6 +1655,7 @@ async def lookup_for_form(
             "food_groups": FOOD_GROUPS,
             "plan_locations": _plan_locations(session),
             "location_plans_json": json.dumps(plans_map),
+            "lookup_providers": _lookup_provider_names(),
             **location_context,
         },
     )

@@ -3,6 +3,21 @@
 <h1 class="h4 mb-2">{% if mode == "edit" %}{{ t("item.edit_title") }}{% else %}{{ t("item.add_title") }}{% endif %}</h1>
 <p class="text-muted mb-3">{{ t("item.mandatory_note") }}</p>
 
+{# ── Barcode lookup progress overlay ── #}
+{% if mode != "edit" %}
+<div id="lookup-overlay" class="d-none position-fixed top-0 start-0 w-100 h-100"
+     style="background:rgba(0,0,0,0.55);z-index:1050;">
+  <div class="position-absolute top-50 start-50 translate-middle text-center bg-white rounded-3 shadow p-4"
+       style="min-width:260px;max-width:90vw;">
+    <div class="spinner-border text-primary mb-3" role="status" style="width:3rem;height:3rem;">
+      <span class="visually-hidden">Loading…</span>
+    </div>
+    <p class="fw-semibold mb-1" id="overlay-title">{{ t("item.lookup_searching") }}</p>
+    <p class="text-muted small mb-0" id="overlay-provider"></p>
+  </div>
+</div>
+{% endif %}
+
 {% if lookup %}
   {% if lookup.found %}
     <div class="alert alert-success py-2">
@@ -704,6 +719,43 @@
       continueCheck.addEventListener("change", () => {
         localStorage.setItem(STORAGE_KEY, continueCheck.checked ? "1" : "0");
       });
+    }
+  })();
+
+  // ── Lookup progress overlay (issue #73) ──────────────────────────────────
+  (() => {
+    const overlay = document.getElementById("lookup-overlay");
+    const overlayProvider = document.getElementById("overlay-provider");
+    const lookupFormOvl = document.getElementById("barcode-lookup-form");
+    if (!overlay || !lookupFormOvl) return;
+
+    const providers = {{ (lookup_providers or []) | tojson }};
+    let providerTimer = null;
+
+    function showOverlay() {
+      overlay.classList.remove("d-none");
+      // Disable all form inputs while searching
+      document.querySelectorAll("form input, form select, form textarea, form button")
+        .forEach(el => { el.disabled = true; });
+      // Cycle through provider names as visual progress cue
+      let idx = 0;
+      if (providers.length && overlayProvider) {
+        overlayProvider.textContent = providers[0];
+        providerTimer = setInterval(() => {
+          idx = (idx + 1) % providers.length;
+          overlayProvider.textContent = providers[idx];
+        }, 800);
+      }
+    }
+
+    lookupFormOvl.addEventListener("submit", showOverlay);
+
+    // Also show overlay when auto-submitting on page load
+    const lookupInputOvl = document.getElementById("lookup-barcode-input");
+    const lookupAlreadyDoneOvl = {{ "true" if lookup and lookup.found else "false" }};
+    if (lookupInputOvl && lookupInputOvl.value.trim() && !lookupAlreadyDoneOvl) {
+      // Will be triggered by the auto-submit setTimeout above — show overlay after same delay
+      setTimeout(showOverlay, 150);
     }
   })();
 
