@@ -78,6 +78,27 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.filters["urlencode_path"] = lambda v: url_quote(str(v), safe="")
+<<<<<<< HEAD
+=======
+
+
+def _datefmt(value: object) -> str:
+    from datetime import date as _date, datetime as _datetime
+
+    if value is None:
+        return "-"
+    if isinstance(value, (_date, _datetime)):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, str) and value:
+        try:
+            return _date.fromisoformat(value).strftime("%d/%m/%Y")
+        except ValueError:
+            return value
+    return str(value) if value else "-"
+
+
+templates.env.filters["datefmt"] = _datefmt
+>>>>>>> 0b65739324a16948ea37deb8f024986cca89b7cd
 
 
 def _datefmt(value: object) -> str:
