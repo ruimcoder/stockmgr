@@ -40,7 +40,7 @@
       </div>
       <div class="col-md-3">
         <small class="text-muted d-block">{{ t("label.renewal_date") }}</small>
-        <strong>{{ product_summary.renewal_date or "-" }}</strong>
+        <strong>{{ product_summary.renewal_date | datefmt }}</strong>
       </div>
       <div class="col-md-3">
         <small class="text-muted d-block">{{ t("product.batch_count") }}</small>
@@ -129,7 +129,7 @@
           <tr>
             <td>{{ batch.batch_code or "-" }}</td>
             <td>{{ batch.storage_bucket or "-" }}</td>
-            <td>{{ batch.expiry_date }}</td>
+            <td>{{ batch.expiry_date | datefmt }}</td>
             <td><strong>{{ batch.quantity }}</strong></td>
             <td>{{ batch.unidose_per_pack }}</td>
             <td>{{ batch.quantity * batch.unidose_per_pack }}</td>
@@ -176,7 +176,7 @@
             <td>{{ batch.batch_code or "-" }}</td>
             <td>{{ batch.storage_location or "-" }}</td>
             <td>{{ batch.storage_bucket or "-" }}</td>
-            <td>{{ batch.expiry_date }}</td>
+            <td>{{ batch.expiry_date | datefmt }}</td>
             <td><strong>{{ batch.quantity }}</strong></td>
             <td>{{ batch.quantity * batch.unidose_per_pack }}</td>
             <td>{{ batch.target_unidoses_location }}</td>

@@ -35,7 +35,7 @@
           <td>{{ item.storage_location }}</td>
           <td>{{ item.storage_bucket or "-" }}</td>
           <td>{{ item.quantity }}</td>
-          <td>{{ item.renewal_date }}</td>
+          <td>{{ item.renewal_date | datefmt }}</td>
         </tr>
         {% else %}
         <tr>

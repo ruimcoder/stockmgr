@@ -73,7 +73,7 @@
             <td>{{ row.total_unidoses }}</td>
             <td>{{ row.target_unidoses }}</td>
             <td>{% if row.plan_target is not none %}<span class="badge bg-info text-dark">{{ row.plan_target }}</span>{% else %}—{% endif %}</td>
-            <td class="{% if row.delta_unidoses < 0 %}text-danger{% elif row.delta_unidoses > 0 %}text-success{% endif %}">{{ row.delta_unidoses }}</td>
+            <td class="{% if row.delta_unidoses is not none and row.delta_unidoses < 0 %}text-danger{% elif row.delta_unidoses is not none and row.delta_unidoses > 0 %}text-success{% endif %}">{% if row.delta_unidoses is none %}—{% else %}{{ row.delta_unidoses }}{% endif %}</td>
           </tr>
           {% else %}
           <tr><td colspan="8" class="text-muted text-center py-3">{{ t("stock.no_data") }}</td></tr>
@@ -103,7 +103,7 @@
             <td><a class="text-decoration-none" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}">{{ row[0] }}</a></td>
             <td>{{ row[1] }}</td>
             <td>{{ row[2] }}</td>
-            <td>{{ row[3] }}</td>
+            <td>{{ row[3] | datefmt }}</td>
             <td>{{ row[4] }}</td>
             <td>{{ row[5] or 0 }}</td>
           </tr>
