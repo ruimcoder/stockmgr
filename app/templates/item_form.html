@@ -373,9 +373,15 @@
   </button>
   {% endif %}
 
-  <div class="d-flex gap-2 mt-4">
+  <div class="d-flex gap-2 mt-4 align-items-center flex-wrap">
     <button class="btn btn-primary" type="submit">{% if mode == "edit" %}{{ t("common.save_changes") }}{% else %}{{ t("common.create_item") }}{% endif %}</button>
     <a class="btn btn-outline-secondary" href="/">{{ t("common.cancel") }}</a>
+    {% if mode != "edit" %}
+    <div class="form-check ms-3 mb-0">
+      <input class="form-check-input" type="checkbox" name="continue_adding" id="continue-adding-check" value="1">
+      <label class="form-check-label small" for="continue-adding-check">{{ t("item.continue_adding") }}</label>
+    </div>
+    {% endif %}
   </div>
 </form>
 <script>
@@ -469,15 +475,46 @@
     }
 
     if (createContainer && addCreateBtn && createTmpl) {
-      function addCreateRow() {
+      function addCreateRow(preselect) {
         const clone = createTmpl.content.cloneNode(true);
         createContainer.appendChild(clone);
         const added = createContainer.lastElementChild;
         initCreateRow(added);
+        // Pre-select last used location from localStorage
+        const lastLoc = preselect || localStorage.getItem("lastLocation");
+        if (lastLoc) {
+          const sel = added.querySelector(".loc-location-sel");
+          if (sel) {
+            const opt = Array.from(sel.options).find(o => o.value === lastLoc);
+            if (opt) {
+              sel.value = lastLoc;
+              syncRowLocation(added, "loc-location-sel", "loc-location-new", "loc-location-value", "loc-plan-hint");
+            }
+          }
+        }
         added.querySelector(".loc-location-sel")?.focus();
       }
       addCreateRow();
-      addCreateBtn.addEventListener("click", addCreateRow);
+      addCreateBtn.addEventListener("click", () => addCreateRow());
+    }
+
+    // Save last-used location to localStorage on form submit (CREATE mode)
+    const mainForm = document.querySelector('form[action="/items"]');
+    if (mainForm) {
+      mainForm.addEventListener("submit", () => {
+        const hiddenLocs = mainForm.querySelectorAll('input[name="loc_location"]');
+        if (hiddenLocs.length > 0 && hiddenLocs[0].value) {
+          localStorage.setItem("lastLocation", hiddenLocs[0].value);
+        }
+      });
+    }
+
+    // Auto-submit barcode lookup if pre-filled on page load (issue #57)
+    const lookupInput = document.getElementById("lookup-barcode-input");
+    const lookupForm = document.getElementById("barcode-lookup-form");
+    if (lookupInput && lookupForm && lookupInput.value.trim()) {
+      // Small delay to allow page to fully render
+      setTimeout(() => lookupForm.requestSubmit(), 100);
     }
   })();
 </script>

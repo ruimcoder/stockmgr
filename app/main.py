@@ -79,6 +79,24 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.filters["urlencode_path"] = lambda v: url_quote(str(v), safe="")
 
+
+def _datefmt(value: object) -> str:
+    from datetime import date as _date, datetime as _datetime
+
+    if value is None:
+        return "-"
+    if isinstance(value, (_date, _datetime)):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, str) and value:
+        try:
+            return _date.fromisoformat(value).strftime("%d/%m/%Y")
+        except ValueError:
+            return value
+    return str(value) if value else "-"
+
+
+templates.env.filters["datefmt"] = _datefmt
+
 oauth = OAuth()
 if settings.google_client_id and settings.google_client_secret:
     oauth.register(
@@ -1037,7 +1055,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             "total_unidoses": int(total_u or 0),
             "target_unidoses": effective_target,
             "plan_target": plan_target,
-            "delta_unidoses": effective_target - int(total_u or 0),
+            "delta_unidoses": (effective_target - int(total_u or 0)) if effective_target else None,
         })
 
     return _render(
@@ -1627,6 +1645,8 @@ async def item_create(
                 f"locations={names}"
             ),
         )
+        if form.get("continue_adding"):
+            return RedirectResponse("/items/new?m=item-created", status_code=303)
         return RedirectResponse("/?m=item-created", status_code=303)
 
     # Legacy single-row path
@@ -1680,6 +1700,8 @@ async def item_create(
         ),
     )
 
+    if form.get("continue_adding"):
+        return RedirectResponse("/items/new?m=item-created", status_code=303)
     return RedirectResponse("/?m=item-created", status_code=303)
 
 

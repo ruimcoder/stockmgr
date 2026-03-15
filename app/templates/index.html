@@ -77,8 +77,8 @@
           <td>{{ item.storage_location }}</td>
           <td>{{ item.storage_bucket or "-" }}</td>
           <td>{{ item.quantity }}</td>
-          <td>{{ item.expiry_date or "-" }}</td>
-          <td>{{ item.renewal_date or "-" }}</td>
+          <td>{{ item.expiry_date | datefmt }}</td>
+          <td>{{ item.renewal_date | datefmt }}</td>
           <td class="text-end text-nowrap">
             <a class="btn btn-sm btn-outline-primary" href="/items/{{ item.id }}/edit" title="{{ t('common.edit') }}"><i class="bi bi-pencil"></i></a>
             <form method="post" action="/items/{{ item.id }}/delete" class="d-inline">
