@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
 import math
 import secrets
+import zipfile
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -16,7 +18,7 @@ from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from authlib.jose.errors import JoseError
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
@@ -1372,6 +1374,20 @@ def food_wheel_page(
         1 for item in items_for_chart if not item["food_group"]
     )
 
+    # Build plan tabs: all plans with their targeted items
+    plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
+    plan_tabs = []
+    for plan in plans:
+        plan_items = session.exec(
+            select(StockItem)
+            .where(
+                StockItem.storage_location == plan.location,
+                StockItem.target_unidoses_location > 0,
+            )
+            .order_by(StockItem.name)
+        ).all()
+        plan_tabs.append({"plan": plan, "items": plan_items})
+
     return _render(
         request,
         "food_wheel.html",
@@ -1382,6 +1398,7 @@ def food_wheel_page(
             "ungrouped_count": ungrouped_count,
             "all_locations": all_locations,
             "selected_location": location or "",
+            "plan_tabs": plan_tabs,
         },
     )
 
@@ -2329,6 +2346,267 @@ async def admin_enrich_items(
             enriched += 1
     session.commit()
     return RedirectResponse(f"/admin/enrich?m=enrich-done&enriched={enriched}", status_code=303)
+
+
+@app.get("/admin/backup")
+def admin_backup(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    import openpyxl
+
+    _ = request
+    items = session.exec(select(StockItem)).all()
+    plans = session.exec(select(LocationPlan)).all()
+
+    # Build stock_items.xlsx
+    wb_items = openpyxl.Workbook()
+    ws_items = wb_items.active
+    ws_items.append([
+        "barcode", "batch_code", "name", "item_type", "storage_location",
+        "storage_bucket", "expiry_date", "quantity", "unidose_per_pack",
+        "target_unidoses_location", "weight_capacity", "uom",
+        "temp_min_c", "temp_max_c", "humidity_min_pct", "humidity_max_pct",
+        "renewal_date", "comment", "image_url",
+    ])
+    for item in items:
+        ws_items.append([
+            item.barcode, item.batch_code, item.name, item.item_type,
+            item.storage_location, item.storage_bucket,
+            item.expiry_date.isoformat() if item.expiry_date else None,
+            item.quantity, item.unidose_per_pack, item.target_unidoses_location,
+            item.weight_capacity, item.uom, item.temp_min_c, item.temp_max_c,
+            item.humidity_min_pct, item.humidity_max_pct,
+            item.renewal_date.isoformat() if item.renewal_date else None,
+            item.comment, item.image_url,
+        ])
+    buf_items = io.BytesIO()
+    wb_items.save(buf_items)
+    items_xlsx_bytes = buf_items.getvalue()
+
+    # Build location_plans.xlsx
+    wb_plans = openpyxl.Workbook()
+    ws_plans = wb_plans.active
+    ws_plans.append(["location", "participants", "stock_duration_days"])
+    for plan in plans:
+        ws_plans.append([plan.location, plan.participants, plan.stock_duration_days])
+    buf_plans = io.BytesIO()
+    wb_plans.save(buf_plans)
+    plans_xlsx_bytes = buf_plans.getvalue()
+
+    # Build metadata.json
+    metadata = {
+        "version": settings.app_version,
+        "backup_date": datetime.now(UTC).isoformat(),
+        "item_count": len(items),
+        "plan_count": len(plans),
+    }
+
+    # Pack into ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("metadata.json", json.dumps(metadata))
+        zf.writestr("stock_items.xlsx", items_xlsx_bytes)
+        zf.writestr("location_plans.xlsx", plans_xlsx_bytes)
+    zip_buffer.seek(0)
+
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=stockmgr-backup-{date_str}.zip"},
+    )
+
+
+@app.get("/admin/restore")
+def admin_restore_page(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    _ = session
+    return _render(request, "restore.html", {"user": admin, "result": None})
+
+
+@app.post("/admin/restore")
+async def admin_restore(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
+    file: UploadFile = File(...),
+):
+    import openpyxl
+
+    file_bytes = await file.read()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(file_bytes))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid backup file: not a ZIP archive")
+
+    if "metadata.json" not in zf.namelist():
+        raise HTTPException(
+            status_code=400,
+            detail=translate(_current_language(request), "msg.backup-restore-invalid"),
+        )
+
+    items_imported = 0
+    if "stock_items.xlsx" in zf.namelist():
+        xlsx_bytes = zf.read("stock_items.xlsx")
+        parsed_items, _ = parse_import_file(xlsx_bytes, "stock_items.xlsx")
+        for item_create in parsed_items:
+            existing = session.exec(
+                select(StockItem).where(
+                    StockItem.name == item_create.name,
+                    StockItem.storage_location == item_create.storage_location,
+                    StockItem.batch_code == item_create.batch_code,
+                )
+            ).first()
+            if existing:
+                for field in item_create.model_fields:
+                    val = getattr(item_create, field, None)
+                    if val is not None:
+                        setattr(existing, field, val)
+                existing.updated_at = datetime.now(UTC)
+                session.add(existing)
+            else:
+                new_item = StockItem(**item_create.model_dump(), user_id=admin.id)
+                session.add(new_item)
+            items_imported += 1
+
+    plans_imported = 0
+    if "location_plans.xlsx" in zf.namelist():
+        xlsx_bytes = zf.read("location_plans.xlsx")
+        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes))
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        if rows:
+            for row in rows[1:]:  # skip header
+                if not row or row[0] is None:
+                    continue
+                loc, participants, duration = str(row[0]), row[1], row[2]
+                if participants is None or duration is None:
+                    continue
+                existing_plan = session.exec(
+                    select(LocationPlan).where(LocationPlan.location == loc)
+                ).first()
+                if existing_plan:
+                    existing_plan.participants = int(participants)
+                    existing_plan.stock_duration_days = int(duration)
+                    existing_plan.updated_at = datetime.now(UTC)
+                    session.add(existing_plan)
+                else:
+                    new_plan = LocationPlan(
+                        location=loc,
+                        participants=int(participants),
+                        stock_duration_days=int(duration),
+                    )
+                    session.add(new_plan)
+                plans_imported += 1
+
+    session.commit()
+    return _render(
+        request,
+        "restore.html",
+        {
+            "user": admin,
+            "result": {"items_imported": items_imported, "plans_imported": plans_imported},
+        },
+    )
+
+
+@app.get("/items/unidose-plan")
+def unidose_plan_page(request: Request, session: Session = Depends(get_session)):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    all_plans = session.exec(select(LocationPlan)).all()
+    plans_by_location: dict[str, LocationPlan] = {p.location: p for p in all_plans}
+
+    all_items = session.exec(select(StockItem).order_by(StockItem.name)).all()
+    seen: dict[str, dict] = {}
+    for item in all_items:
+        if item.name in seen:
+            continue
+        plan = plans_by_location.get(item.storage_location)
+        if plan and plan.participants > 0 and plan.stock_duration_days > 0:
+            denom = plan.participants * plan.stock_duration_days
+            current_upd = round(item.target_unidoses_location / denom, 2)
+            has_plan = True
+        else:
+            current_upd = 0.0
+            has_plan = False
+        seen[item.name] = {
+            "name": item.name,
+            "item_type": item.item_type,
+            "barcode": item.barcode or "",
+            "current_unidose_per_day": current_upd,
+            "has_plan": has_plan,
+        }
+    products = list(seen.values())
+
+    return _render(request, "unidose_plan.html", {
+        "user": user,
+        "products": products,
+        "message": request.query_params.get("m"),
+    })
+
+
+@app.post("/items/unidose-plan")
+async def unidose_plan_submit(
+    request: Request,
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+
+    all_plans = session.exec(select(LocationPlan)).all()
+    plans_by_location: dict[str, LocationPlan] = {p.location: p for p in all_plans}
+
+    form = await request.form()
+
+    all_items = session.exec(select(StockItem)).all()
+    old_upd: dict[str, float] = {}
+    for item in all_items:
+        if item.name in old_upd:
+            continue
+        plan = plans_by_location.get(item.storage_location)
+        if plan and plan.participants > 0 and plan.stock_duration_days > 0:
+            denom = plan.participants * plan.stock_duration_days
+            old_upd[item.name] = round(item.target_unidoses_location / denom, 2)
+        else:
+            old_upd[item.name] = 0.0
+
+    updated_count = 0
+    for key, value in form.multi_items():
+        if not key.startswith("upd_"):
+            continue
+        product_name = key[4:]
+        try:
+            new_upd = float(value)
+        except (ValueError, TypeError):
+            continue
+        old = old_upd.get(product_name, 0.0)
+        if abs(new_upd - old) < 0.001:
+            continue
+        batches = session.exec(
+            select(StockItem).where(StockItem.name == product_name)
+        ).all()
+        for batch in batches:
+            plan = plans_by_location.get(batch.storage_location)
+            if plan:
+                new_target = round(new_upd * plan.participants * plan.stock_duration_days)
+                batch.target_unidoses_location = new_target
+                batch.updated_at = datetime.now(UTC)
+                session.add(batch)
+                updated_count += 1
+    session.commit()
+    return RedirectResponse("/items/unidose-plan?m=saved", status_code=303)
 
 
 @app.get("/api/items", response_model=list[ItemRead])

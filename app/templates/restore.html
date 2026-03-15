@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t("nav.restore") }}</h1>
+{% if result %}
+<div class="alert alert-success">
+  {{ t("restore.success") }}: {{ result.items_imported }} items, {{ result.plans_imported }} plans
+</div>
+{% endif %}
+<form method="post" action="/admin/restore" enctype="multipart/form-data">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+  <div class="mb-3">
+    <label class="form-label">{{ t("restore.file_label") }}</label>
+    <input type="file" name="file" accept=".zip" class="form-control" required />
+  </div>
+  <button type="submit" class="btn btn-primary">{{ t("restore.submit") }}</button>
+</form>
+{% endblock %}
