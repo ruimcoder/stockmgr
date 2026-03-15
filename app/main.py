@@ -97,6 +97,24 @@ def _datefmt(value: object) -> str:
 
 templates.env.filters["datefmt"] = _datefmt
 
+
+def _datefmt(value: object) -> str:
+    from datetime import date as _date, datetime as _datetime
+
+    if value is None:
+        return "-"
+    if isinstance(value, (_date, _datetime)):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, str) and value:
+        try:
+            return _date.fromisoformat(value).strftime("%d/%m/%Y")
+        except ValueError:
+            return value
+    return str(value) if value else "-"
+
+
+templates.env.filters["datefmt"] = _datefmt
+
 oauth = OAuth()
 if settings.google_client_id and settings.google_client_secret:
     oauth.register(
@@ -311,6 +329,22 @@ def _upsert_oauth_user(
     return user
 
 
+def _parse_size(size_str: str | None) -> tuple[float | None, str | None]:
+    """Parse a size string like '500g', '1.5kg', '250ml' into (value, unit)."""
+    import re as _re
+    if not size_str:
+        return None, None
+    m = _re.match(r"([0-9]+(?:[.,][0-9]+)?)\s*([a-zA-Z]+)", size_str.strip())
+    if not m:
+        return None, None
+    try:
+        val = float(m.group(1).replace(",", "."))
+        unit = m.group(2).lower()
+        return val, unit
+    except ValueError:
+        return None, None
+
+
 def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
     selected_storage_location = form.get("storage_location")
     if selected_storage_location == "__new__":
@@ -336,6 +370,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "image_url",
         "nutriscore",
         "food_group",
+        "weight_capacity",
+        "uom",
     ):
         value = form.get(key)
         if key == "storage_bucket":
@@ -346,6 +382,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
             payload[key] = int(value) if value not in ("", None) else 1
         elif key == "target_unidoses_location":
             payload[key] = int(value) if value not in ("", None) else 0
+        elif key == "weight_capacity":
+            payload[key] = float(value) if value not in ("", None) else None
         else:
             payload[key] = value if value not in ("", None) else None
     return payload
@@ -445,6 +483,7 @@ def _plan_locations(session: Session) -> list[str]:
         .where(StockItem.storage_location != "")
         .distinct()
         .order_by(func.lower(StockItem.storage_location))
+        .order_by(func.lower(StockItem.storage_location))
     ).all()
     seen: set[str] = set()
     result: list[str] = []
@@ -454,6 +493,22 @@ def _plan_locations(session: Session) -> list[str]:
             seen.add(key)
             result.append(key)
     return result
+
+
+def _upsert_location_plan(session: Session, *, location: str, participants: int, stock_duration_days: int) -> None:
+    """Create or update a LocationPlan for the given location."""
+    location = location.strip()
+    if not location:
+        return
+    existing = session.exec(select(LocationPlan).where(LocationPlan.location == location)).first()
+    if existing:
+        existing.participants = participants
+        existing.stock_duration_days = stock_duration_days
+        existing.updated_at = datetime.now(UTC)
+        session.add(existing)
+    else:
+        session.add(LocationPlan(location=location, participants=participants, stock_duration_days=stock_duration_days))
+    session.commit()
 
 
 def _telegram_operation_message(*, operation: str, actor: str, detail: str) -> str:
@@ -1536,6 +1591,7 @@ async def lookup_for_form(
                 "image_url": result.data.get("imageUrl"),
                 "nutriscore": result.data.get("nutriscore"),
                 "food_group": inferred_group,
+                **dict(zip(("weight_capacity", "uom"), _parse_size(result.data.get("size")))),
             }
         )
     location_context = _storage_location_field_context(
@@ -1645,6 +1701,20 @@ async def item_create(
                 f"locations={names}"
             ),
         )
+        # Auto-create location plans for any new locations submitted (#53)
+        new_plan_locs = form.getlist("new_plan_location")
+        new_plan_parts = form.getlist("new_plan_participants")
+        new_plan_days = form.getlist("new_plan_days")
+        for i, plan_loc in enumerate(new_plan_locs):
+            plan_loc = plan_loc.strip()
+            if not plan_loc:
+                continue
+            try:
+                parts = int(new_plan_parts[i]) if i < len(new_plan_parts) else 4
+                days = int(new_plan_days[i]) if i < len(new_plan_days) else 30
+                _upsert_location_plan(session, location=plan_loc, participants=parts, stock_duration_days=days)
+            except (ValueError, IndexError):
+                pass
         if form.get("continue_adding"):
             return RedirectResponse("/items/new?m=item-created", status_code=303)
         return RedirectResponse("/?m=item-created", status_code=303)
@@ -1699,6 +1769,17 @@ async def item_create(
             f"location={item.storage_location}"
         ),
     )
+
+    if form.get("new_plan_location"):
+        try:
+            _upsert_location_plan(
+                session,
+                location=str(form.get("new_plan_location")),
+                participants=int(form.get("new_plan_participants") or 4),
+                stock_duration_days=int(form.get("new_plan_days") or 30),
+            )
+        except (ValueError, Exception):
+            pass
 
     if form.get("continue_adding"):
         return RedirectResponse("/items/new?m=item-created", status_code=303)
@@ -2143,6 +2224,12 @@ async def admin_enrich_items(
             )
             if inferred:
                 item.food_group = inferred
+                changed = True
+        if not item.weight_capacity and result.data.get("size"):
+            wc, u = _parse_size(result.data.get("size"))
+            if wc is not None:
+                item.weight_capacity = wc
+                item.uom = u
                 changed = True
         if changed:
             item.updated_at = datetime.now(UTC)
