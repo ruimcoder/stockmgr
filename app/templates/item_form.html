@@ -734,9 +734,7 @@
 
     function showOverlay() {
       overlay.classList.remove("d-none");
-      // Disable all form inputs while searching
-      document.querySelectorAll("form input:not([type=hidden]), form select, form textarea, form button")
-        .forEach(el => { el.disabled = true; });
+      // The overlay covers the screen — no need to disable inputs (would prevent submission)
       // Cycle through provider names as visual progress cue
       let idx = 0;
       if (providers.length && overlayProvider) {
