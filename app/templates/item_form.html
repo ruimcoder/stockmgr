@@ -57,7 +57,6 @@
 
 <form method="post" action="{% if mode == 'edit' %}/items/{{ draft.id }}/update{% else %}/items{% endif %}">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-  <input type="hidden" name="image_url" value="{{ draft.image_url or '' }}" />
   <input type="hidden" name="nutriscore" value="{{ draft.nutriscore or '' }}" />
   <input type="hidden" name="food_group" id="food-group-hidden" value="{{ draft.food_group or '' }}" />
 
@@ -121,6 +120,29 @@
         <div class="col-12">
           <label class="form-label">{{ t("label.comment") }}</label>
           <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">{{ t("label.image_url") }}</label>
+          <div class="d-flex align-items-start gap-3">
+            {% if draft.image_url %}
+            <img src="{{ draft.image_url }}" alt="{{ draft.name or 'product' }}" id="img-preview"
+                 class="rounded border" style="max-height:80px;max-width:80px;object-fit:contain;" />
+            {% else %}
+            <img src="" alt="" id="img-preview" class="rounded border d-none"
+                 style="max-height:80px;max-width:80px;object-fit:contain;" />
+            {% endif %}
+            <div class="flex-grow-1">
+              <input class="form-control mb-2" name="image_url" id="image-url-input"
+                     value="{{ draft.image_url or '' }}" placeholder="https://…" />
+              <label class="form-label small text-muted mb-1">{{ t("label.or_upload_image") }}</label>
+              <form method="post" action="/items/{{ draft.id }}/upload-image"
+                    enctype="multipart/form-data" class="d-flex gap-2">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+                <input type="file" name="file" accept="image/*" class="form-control form-control-sm" />
+                <button type="submit" class="btn btn-sm btn-secondary text-nowrap">{{ t("action.upload") }}</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -316,6 +338,11 @@
     <div class="col-12">
       <label class="form-label">{{ t("label.comment") }}</label>
       <textarea class="form-control" name="comment" rows="2">{{ draft.comment or '' }}</textarea>
+    </div>
+    <div class="col-12">
+      <label class="form-label">{{ t("label.image_url") }}</label>
+      <input class="form-control" name="image_url" id="image-url-input"
+             value="{{ draft.image_url or '' }}" placeholder="https://…" />
     </div>
   </div>
   {% endif %}
@@ -641,5 +668,7 @@
       setTimeout(() => lookupForm.requestSubmit(), 100);
     }
   })();
+
+  // ── Image URL preview (removed live preview to avoid DOM-based injection) ──
 </script>
 {% endblock %}
