@@ -669,21 +669,6 @@
     }
   })();
 
-  // ── Image URL preview ────────────────────────────────────────────────────
-  (() => {
-    const urlInput = document.getElementById("image-url-input");
-    const preview = document.getElementById("img-preview");
-    if (!urlInput || !preview) return;
-    urlInput.addEventListener("input", () => {
-      const val = urlInput.value.trim();
-      if (val && /^(https?:|\/)/i.test(val)) {
-        preview.src = val;
-        preview.classList.remove("d-none");
-      } else {
-        preview.src = "";
-        preview.classList.add("d-none");
-      }
-    });
-  })();
+  // ── Image URL preview (removed live preview to avoid DOM-based injection) ──
 </script>
 {% endblock %}

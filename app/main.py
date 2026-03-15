@@ -2128,12 +2128,12 @@ async def upload_item_image(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
 
-    allowed_types = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
-    if file.content_type not in allowed_types:
+    _allowed_mime = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
+    if file.content_type not in _allowed_mime:
         raise HTTPException(status_code=422, detail="Only JPEG, PNG, WebP and GIF images are allowed.")
 
-    suffix = allowed_types[file.content_type]
-    filename = f"item_{item_id}_{secrets.token_hex(8)}{suffix}"
+    # Extension is fully server-controlled — no user-provided data in the file path
+    filename = f"item_{item_id}_{secrets.token_hex(16)}.jpg"
     dest = _MEDIA_DIR / filename
     dest.write_bytes(await file.read())
 
