@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-0">{{ t("page.unidose_plan_title") }}</h1>
+  </div>
+</div>
+
+{% if message == "saved" %}
+<div class="alert alert-success">{{ t("msg.unidose-plan-saved") }}</div>
+{% endif %}
+
+<form method="post" action="/items/unidose-plan">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+  <table class="table table-sm table-hover align-middle">
+    <thead>
+      <tr>
+        <th>{{ t("table.name") }}</th>
+        <th>{{ t("table.type") }}</th>
+        <th>{{ t("unidose_plan.upd_label") }}</th>
+        <th>{{ t("unidose_plan.has_plan") }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.item_type }}</td>
+        <td>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            class="form-control form-control-sm"
+            style="width:120px;"
+            name="upd_{{ p.name }}"
+            value="{{ p.current_unidose_per_day }}"
+          />
+        </td>
+        <td>
+          {% if p.has_plan %}
+          <span class="badge bg-success">✓</span>
+          {% else %}
+          <span class="badge bg-secondary">–</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if products %}
+  <button type="submit" class="btn btn-primary">{{ t("common.save_changes") }}</button>
+  {% endif %}
+</form>
+{% endblock %}
