@@ -2081,6 +2081,25 @@ def admin_toggle_admin(
     session.commit()
     return RedirectResponse("/admin/users?m=user-role-updated", status_code=303)
 
+
+
+@app.get("/admin/enrich")
+def admin_enrich_page(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    _ = session
+    return _render(
+        request,
+        "enrich.html",
+        {
+            "user": admin,
+            "message": _fetch_message(request),
+            "enriched_count": request.query_params.get("enriched"),
+        },
+    )
+
 
 @app.post("/admin/enrich-items")
 async def admin_enrich_items(
@@ -2130,7 +2149,7 @@ async def admin_enrich_items(
             session.add(item)
             enriched += 1
     session.commit()
-    return RedirectResponse(f"/admin/users?m=enrich-done&enriched={enriched}", status_code=303)
+    return RedirectResponse(f"/admin/enrich?m=enrich-done&enriched={enriched}", status_code=303)
 
 
 @app.get("/api/items", response_model=list[ItemRead])
