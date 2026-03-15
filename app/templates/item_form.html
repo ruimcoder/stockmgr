@@ -668,6 +668,19 @@
     if (lookupInput && lookupForm && lookupInput.value.trim() && !lookupAlreadyDone) {
       // Small delay to allow page to fully render
       setTimeout(() => lookupForm.requestSubmit(), 100);
+    } else if (lookupInput && !lookupInput.value.trim()) {
+      // #64: focus barcode field when empty so user can start scanning/typing
+      lookupInput.focus();
+    }
+
+    // #66: persist "continue adding" checkbox state via localStorage
+    const continueCheck = document.getElementById("continue-adding-check");
+    if (continueCheck) {
+      const STORAGE_KEY = "stockmgr_continue_adding";
+      continueCheck.checked = localStorage.getItem(STORAGE_KEY) === "1";
+      continueCheck.addEventListener("change", () => {
+        localStorage.setItem(STORAGE_KEY, continueCheck.checked ? "1" : "0");
+      });
     }
   })();
 
