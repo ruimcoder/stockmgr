@@ -64,7 +64,8 @@
         "supportsSearch": true,
         "supportsBulk": false
       },
-      "notes": "Primary provider for food items. Uses Portuguese OpenFoodFacts endpoint for PT-first results and Nutri-score data."
+      "notes": "Primary provider for food items. Uses Portuguese OpenFoodFacts endpoint for PT-first results and Nutri-score data.",
+      "stopOnSuccess": true
     },
     "open_products_facts": {
       "displayName": "Open Products Facts",
