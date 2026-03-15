@@ -70,7 +70,7 @@
       <tbody>
       {% for item in items %}
         <tr>
-          <td><a class="text-decoration-none" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}">{{ item.name }}</a></td>
+          <td><a class="text-decoration-none" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}">{{ item.name }}</a>{% if item.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if item.nutriscore in ['a','b'] %}success{% elif item.nutriscore == 'c' %}warning{% elif item.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">{{ item.nutriscore | upper }}</span>{% endif %}</td>
           <td>{{ item.item_type }}</td>
           <td>{{ item.barcode or "-" }}</td>
           <td>{{ item.batch_code or "-" }}</td>

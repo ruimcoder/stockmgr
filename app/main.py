@@ -21,6 +21,8 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from jsonschema import ValidationError as JsonSchemaValidationError
+from jsonschema import validate as jsonschema_validate
 from pydantic import ValidationError
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -1057,6 +1059,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.name,
             StockItem.item_type,
             func.sum(StockItem.quantity).label("quantity"),
+            func.max(StockItem.nutriscore).label("nutriscore"),
         )
         .group_by(StockItem.name, StockItem.item_type)
         .order_by(StockItem.name)
@@ -1070,6 +1073,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             func.sum(StockItem.quantity).label("quantity"),
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
+            func.max(StockItem.nutriscore).label("nutriscore"),
         )
         .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
         .order_by(StockItem.name, StockItem.storage_location)
@@ -1082,6 +1086,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.expiry_date,
             func.sum(StockItem.quantity).label("quantity"),
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
+            func.max(StockItem.nutriscore).label("nutriscore"),
         )
         .group_by(
             StockItem.name,
@@ -1096,7 +1101,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
     raw_location = session.exec(by_location_query).all()
     location_rows = []
     for row in raw_location:
-        name, item_type, location, food_group, qty, total_u, target_u = row
+        name, item_type, location, food_group, qty, total_u, target_u, nutriscore = row
         plan = plans.get(location)
         if plan and food_group:
             fg = FOOD_GROUP_BY_KEY.get(food_group)
@@ -1118,6 +1123,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             "target_unidoses": effective_target,
             "plan_target": plan_target,
             "delta_unidoses": (effective_target - int(total_u or 0)) if effective_target else None,
+            "nutriscore": nutriscore,
         })
 
     return _render(
@@ -2516,7 +2522,100 @@ async def admin_restore(
     )
 
 
-@app.get("/items/unidose-plan")
+@app.get("/admin/config")
+def admin_config_page(
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+):
+    config_path = Path(settings.provider_config_path)
+    if not config_path.is_absolute():
+        config_path = Path(__file__).resolve().parents[1] / settings.provider_config_path
+    config_json = config_path.read_text(encoding="utf-8")
+    settings_dict = {
+        "environment": settings.environment,
+        "app_version": settings.app_version,
+        "auth_mode": settings.auth_mode,
+        "calendar_provider": settings.calendar_provider,
+        "renewal_window_days": settings.renewal_window_days,
+        "admin_emails": settings.admin_emails,
+        "provider_config_path": settings.provider_config_path,
+        "provider_schema_path": settings.provider_schema_path,
+    }
+    return _render(
+        request,
+        "config.html",
+        {
+            "user": admin,
+            "config_json": json.dumps(json.loads(config_json), indent=2),
+            "settings_dict": settings_dict,
+            "message": _fetch_message(request),
+            "error": None,
+        },
+    )
+
+
+@app.post("/admin/config")
+async def admin_config_save(
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
+    config_json: str = Form(...),
+):
+    settings_dict = {
+        "environment": settings.environment,
+        "app_version": settings.app_version,
+        "auth_mode": settings.auth_mode,
+        "calendar_provider": settings.calendar_provider,
+        "renewal_window_days": settings.renewal_window_days,
+        "admin_emails": settings.admin_emails,
+        "provider_config_path": settings.provider_config_path,
+        "provider_schema_path": settings.provider_schema_path,
+    }
+    try:
+        parsed = json.loads(config_json)
+    except json.JSONDecodeError as exc:
+        return _render(
+            request,
+            "config.html",
+            {
+                "user": admin,
+                "config_json": config_json,
+                "settings_dict": settings_dict,
+                "message": None,
+                "error": f"{translate(_current_language(request), 'config.validation_error')}: {exc}",
+            },
+        )
+
+    schema_path = Path(settings.provider_schema_path)
+    if not schema_path.is_absolute():
+        schema_path = Path(__file__).resolve().parents[1] / settings.provider_schema_path
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    try:
+        jsonschema_validate(instance=parsed, schema=schema)
+    except JsonSchemaValidationError as exc:
+        return _render(
+            request,
+            "config.html",
+            {
+                "user": admin,
+                "config_json": config_json,
+                "settings_dict": settings_dict,
+                "message": None,
+                "error": f"{translate(_current_language(request), 'config.validation_error')}: {exc.message}",
+            },
+        )
+
+    config_path = Path(settings.provider_config_path)
+    if not config_path.is_absolute():
+        config_path = Path(__file__).resolve().parents[1] / settings.provider_config_path
+    config_path.write_text(json.dumps(parsed, indent=2), encoding="utf-8")
+    barcode_service.reload_config()
+
+    return RedirectResponse("/admin/config?m=saved", status_code=303)
+
+
+
 def unidose_plan_page(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">{{ t("config.title") }}</h1>
+
+{% if message == "saved" %}
+<div class="alert alert-success py-2">{{ t("config.saved") }}</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger py-2">{{ error }}</div>
+{% endif %}
+
+<ul class="nav nav-tabs mb-3" id="config-tabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="tab-providers" data-bs-toggle="tab" data-bs-target="#pane-providers" type="button" role="tab">
+      {{ t("config.providers_tab") }}
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab">
+      {{ t("config.settings_tab") }}
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <!-- Tab 1: Barcode Providers -->
+  <div class="tab-pane fade show active" id="pane-providers" role="tabpanel">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" action="/admin/config">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+          <div class="mb-3">
+            <textarea class="form-control font-monospace" name="config_json" rows="28"
+                      style="font-size:0.85rem;">{{ config_json }}</textarea>
+          </div>
+          <button class="btn btn-primary" type="submit">{{ t("config.save_providers") }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: App Settings (read-only) -->
+  <div class="tab-pane fade" id="pane-settings" role="tabpanel">
+    <div class="card">
+      <div class="card-body">
+        <table class="table table-sm table-striped mb-0">
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for key, value in settings_dict.items() %}
+            <tr>
+              <td class="font-monospace text-muted">{{ key }}</td>
+              <td>{{ value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

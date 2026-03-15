@@ -57,7 +57,6 @@
 
 <form method="post" action="{% if mode == 'edit' %}/items/{{ draft.id }}/update{% else %}/items{% endif %}">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-  <input type="hidden" name="nutriscore" value="{{ draft.nutriscore or '' }}" />
   <input type="hidden" name="food_group" id="food-group-hidden" value="{{ draft.food_group or '' }}" />
 
   {% if mode == "edit" %}
@@ -113,6 +112,18 @@
             {% for group in food_groups %}
             <option value="{{ group.key }}" data-color="{{ group.color }}" {% if draft.food_group == group.key %}selected{% endif %}>
               {% if lang == "pt" %}{{ group.name_pt }}{% else %}{{ group.name_en }}{% endif %} ({{ group.target_pct }}%)
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.nutriscore_select") }}</label>
+          <select class="form-select" name="nutriscore">
+            <option value="" {% if not draft.nutriscore %}selected{% endif %}>—</option>
+            {% for ns in ["a", "b", "c", "d", "e"] %}
+            <option value="{{ ns }}" {% if draft.nutriscore == ns %}selected{% endif %}
+              style="background:var(--bs-{% if ns in ['a','b'] %}success{% elif ns == 'c' %}warning{% elif ns == 'd' %}danger{% else %}secondary{% endif %});">
+              {{ ns | upper }}
             </option>
             {% endfor %}
           </select>
@@ -331,6 +342,18 @@
         {% for group in food_groups %}
         <option value="{{ group.key }}" data-color="{{ group.color }}" {% if draft.food_group == group.key %}selected{% endif %}>
           {% if lang == "pt" %}{{ group.name_pt }}{% else %}{{ group.name_en }}{% endif %} ({{ group.target_pct }}%)
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.nutriscore_select") }}</label>
+      <select class="form-select" name="nutriscore">
+        <option value="" {% if not draft.nutriscore %}selected{% endif %}>—</option>
+        {% for ns in ["a", "b", "c", "d", "e"] %}
+        <option value="{{ ns }}" {% if draft.nutriscore == ns %}selected{% endif %}
+          style="background:var(--bs-{% if ns in ['a','b'] %}success{% elif ns == 'c' %}warning{% elif ns == 'd' %}danger{% else %}secondary{% endif %});">
+          {{ ns | upper }}
         </option>
         {% endfor %}
       </select>
