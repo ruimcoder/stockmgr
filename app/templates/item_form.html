@@ -661,9 +661,11 @@
     }
 
     // Auto-submit barcode lookup if pre-filled on page load (issue #57)
+    // Only trigger if no lookup result yet — prevents infinite reload loop
     const lookupInput = document.getElementById("lookup-barcode-input");
     const lookupForm = document.getElementById("barcode-lookup-form");
-    if (lookupInput && lookupForm && lookupInput.value.trim()) {
+    const lookupAlreadyDone = {{ "true" if lookup and lookup.found else "false" }};
+    if (lookupInput && lookupForm && lookupInput.value.trim() && !lookupAlreadyDone) {
       // Small delay to allow page to fully render
       setTimeout(() => lookupForm.requestSubmit(), 100);
     }
