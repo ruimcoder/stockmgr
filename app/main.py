@@ -2132,8 +2132,8 @@ async def upload_item_image(
     if file.content_type not in _allowed_mime:
         raise HTTPException(status_code=422, detail="Only JPEG, PNG, WebP and GIF images are allowed.")
 
-    # Extension is fully server-controlled — no user-provided data in the file path
-    filename = f"item_{item_id}_{secrets.token_hex(16)}.jpg"
+    # Filename is fully server-controlled (pure random token, no user-provided data)
+    filename = f"img_{secrets.token_hex(24)}.jpg"
     dest = _MEDIA_DIR / filename
     dest.write_bytes(await file.read())
 
