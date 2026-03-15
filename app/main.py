@@ -76,6 +76,11 @@ app.add_middleware(
     https_only=settings.environment == "production",
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# Media uploads directory (product images)
+_MEDIA_DIR = BASE_DIR.parent / "media"
+_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(_MEDIA_DIR)), name="media")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.filters["urlencode_path"] = lambda v: url_quote(str(v), safe="")
 
@@ -2051,6 +2056,92 @@ def item_delete(
         detail=f"name={deleted_name} type={deleted_type} location={deleted_location}",
     )
     return RedirectResponse("/?m=item-deleted", status_code=303)
+
+
+
+@app.get("/items/export")
+def export_items(request: Request, session: Session = Depends(get_session)):
+    """Export all stock items to XLSX in import-compatible format."""
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+
+    from io import BytesIO
+    from openpyxl import Workbook
+
+    items = session.exec(select(StockItem).order_by(StockItem.name, StockItem.storage_location)).all()
+
+    columns = [
+        ("barcode", "barcode"),
+        ("batch_code", "batch_code"),
+        ("name", "name"),
+        ("item_type", "item_type"),
+        ("storage_location", "storage_location"),
+        ("storage_bucket", "storage_bucket"),
+        ("expiry_date", "expiry_date"),
+        ("quantity", "quantity"),
+        ("unidose_per_pack", "unidose_per_pack"),
+        ("target_unidoses_location", "target_unidoses_location"),
+        ("weight_capacity", "weight_capacity"),
+        ("uom", "uom"),
+        ("temp_min_c", "temp_min_c"),
+        ("temp_max_c", "temp_max_c"),
+        ("humidity_min_pct", "humidity_min_pct"),
+        ("humidity_max_pct", "humidity_max_pct"),
+        ("renewal_date", "renewal_date"),
+        ("comment", "comment"),
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Stock"
+    ws.append([col[0] for col in columns])
+    for item in items:
+        ws.append([getattr(item, col[1], None) for col in columns])
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    from fastapi.responses import Response
+    return Response(
+        content=buf.read(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=stockmgr-export.xlsx"},
+    )
+
+
+@app.post("/items/{item_id}/upload-image")
+async def upload_item_image(
+    item_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(_validate_csrf),
+):
+    """Upload a product image for a stock item."""
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+
+    item = session.get(StockItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found.")
+
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=422, detail="Only JPEG, PNG, WebP and GIF images are allowed.")
+
+    suffix = Path(file.filename or "image.jpg").suffix.lower() or ".jpg"
+    filename = f"item_{item_id}_{secrets.token_hex(8)}{suffix}"
+    dest = _MEDIA_DIR / filename
+    dest.write_bytes(await file.read())
+
+    item.image_url = f"/media/{filename}"
+    item.updated_at = datetime.now(UTC)
+    session.add(item)
+    session.commit()
+    return RedirectResponse(f"/items/{item_id}/edit?m=image-updated", status_code=303)
 
 
 @app.get("/items/import")
