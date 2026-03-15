@@ -104,6 +104,10 @@ def _migrate_legacy_schema() -> None:
             connection.exec_driver_sql("ALTER TABLE stockitem ADD COLUMN nutriscore TEXT;")
         if "food_group" not in existing_names:
             connection.exec_driver_sql("ALTER TABLE stockitem ADD COLUMN food_group TEXT;")
+        if "weight_capacity" not in existing_names:
+            connection.exec_driver_sql("ALTER TABLE stockitem ADD COLUMN weight_capacity REAL;")
+        if "uom" not in existing_names:
+            connection.exec_driver_sql("ALTER TABLE stockitem ADD COLUMN uom TEXT;")
         connection.exec_driver_sql(
             "UPDATE stockitem SET expiry_date = date('now') WHERE expiry_date IS NULL;"
         )

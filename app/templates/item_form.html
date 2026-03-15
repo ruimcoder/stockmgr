@@ -99,6 +99,14 @@
           <label class="form-label">{{ t("label.humidity_max") }}</label>
           <input class="form-control" name="humidity_max_pct" type="number" step="0.1" value="{{ draft.humidity_max_pct or '' }}" />
         </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.weight_capacity") }}</label>
+          <input class="form-control" name="weight_capacity" type="number" step="0.001" min="0" value="{{ draft.weight_capacity or '' }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ t("label.uom") }}</label>
+          <input class="form-control" name="uom" value="{{ draft.uom or '' }}" placeholder="g, kg, ml, l…" />
+        </div>
         <div class="col-md-6">
           <label class="form-label">{{ t("label.food_group") }}</label>
           <select class="form-select" id="food-group-select" name="food_group">
@@ -286,6 +294,14 @@
       <label class="form-label">{{ t("label.humidity_max") }}</label>
       <input class="form-control" name="humidity_max_pct" type="number" step="0.1" value="{{ draft.humidity_max_pct or '' }}" />
     </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.weight_capacity") }}</label>
+      <input class="form-control" name="weight_capacity" type="number" step="0.001" min="0" value="{{ draft.weight_capacity or '' }}" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ t("label.uom") }}</label>
+      <input class="form-control" name="uom" value="{{ draft.uom or '' }}" placeholder="g, kg, ml, l…" />
+    </div>
     <div class="col-md-6">
       <label class="form-label">{{ t("label.food_group") }}</label>
       <select class="form-select" id="food-group-select" name="food_group">
@@ -384,6 +400,37 @@
     {% endif %}
   </div>
 </form>
+
+{% if mode != "edit" %}
+{# ── Location plan modal (CREATE mode, #53) ── #}
+<div class="modal fade" id="newLocationPlanModal" tabindex="-1" aria-labelledby="locationPlanModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="locationPlanModalLabel">{{ t("item.new_location_plan_title") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">{{ t("item.new_location_plan_desc") }}: <strong id="modal-loc-name"></strong></p>
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label">{{ t("item.new_location_plan_participants") }}</label>
+            <input type="number" class="form-control" id="modal-participants" min="1" value="4" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">{{ t("item.new_location_plan_days") }}</label>
+            <input type="number" class="form-control" id="modal-days" min="1" value="30" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ t("item.new_location_plan_skip") }}</button>
+        <button type="button" class="btn btn-primary" id="modal-save-plan">{{ t("item.new_location_plan_save") }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 <script>
   (() => {
     const plans = {{ location_plans_json | safe }};
@@ -507,6 +554,83 @@
           localStorage.setItem("lastLocation", hiddenLocs[0].value);
         }
       });
+    }
+
+    // ── Location plan modal for new locations (#53) ──────────────────────
+    const planModal = document.getElementById("newLocationPlanModal");
+    const modalSaveBtn = document.getElementById("modal-save-plan");
+    const modalLocName = document.getElementById("modal-loc-name");
+    let pendingPlanLoc = null;
+
+    function checkLocationNeedsPlan(locValue) {
+      if (!locValue || planModal === null) return;
+      if (locValue in plans) return; // already has a plan
+      pendingPlanLoc = locValue;
+      if (modalLocName) modalLocName.textContent = locValue;
+      const bsModal = new bootstrap.Modal(planModal);
+      bsModal.show();
+    }
+
+    if (modalSaveBtn && mainForm) {
+      modalSaveBtn.addEventListener("click", () => {
+        const loc = pendingPlanLoc;
+        if (!loc) return;
+        const parts = parseInt(document.getElementById("modal-participants")?.value || "4");
+        const days = parseInt(document.getElementById("modal-days")?.value || "30");
+        // Store plan data in hidden inputs on the main form
+        let locInp = mainForm.querySelector('input[name="new_plan_location"]');
+        if (!locInp) {
+          locInp = document.createElement("input"); locInp.type = "hidden"; locInp.name = "new_plan_location"; mainForm.appendChild(locInp);
+        }
+        let partsInp = mainForm.querySelector('input[name="new_plan_participants"]');
+        if (!partsInp) {
+          partsInp = document.createElement("input"); partsInp.type = "hidden"; partsInp.name = "new_plan_participants"; mainForm.appendChild(partsInp);
+        }
+        let daysInp = mainForm.querySelector('input[name="new_plan_days"]');
+        if (!daysInp) {
+          daysInp = document.createElement("input"); daysInp.type = "hidden"; daysInp.name = "new_plan_days"; mainForm.appendChild(daysInp);
+        }
+        locInp.value = loc;
+        partsInp.value = parts;
+        daysInp.value = days;
+        // Update local plans cache so repeat entries don't re-trigger
+        plans[loc] = parts * days * 4;
+        bootstrap.Modal.getInstance(planModal)?.hide();
+        pendingPlanLoc = null;
+      });
+    }
+
+    // Patch initCreateRow to trigger plan modal after location is set
+    const origSync = syncRowLocation;
+    function syncAndCheckPlan(entryEl, ...args) {
+      origSync(entryEl, ...args);
+      const hidden = entryEl.querySelector("." + args[2]);
+      if (hidden && hidden.value) checkLocationNeedsPlan(hidden.value);
+    }
+    // Override for create rows
+    if (createContainer) {
+      createContainer.addEventListener("change", (e) => {
+        const sel = e.target.closest(".loc-location-sel");
+        if (sel) {
+          const entry = sel.closest(".location-entry");
+          if (entry) {
+            const hidden = entry.querySelector(".loc-location-value");
+            if (hidden && hidden.value && hidden.value !== "__new__") {
+              checkLocationNeedsPlan(hidden.value);
+            }
+          }
+        }
+      });
+      createContainer.addEventListener("blur", (e) => {
+        const inp = e.target.closest(".loc-location-new");
+        if (inp && inp.value.trim()) {
+          const entry = inp.closest(".location-entry");
+          if (entry) {
+            const hidden = entry.querySelector(".loc-location-value");
+            if (hidden && hidden.value) checkLocationNeedsPlan(hidden.value);
+          }
+        }
+      }, true);
     }
 
     // Auto-submit barcode lookup if pre-filled on page load (issue #57)

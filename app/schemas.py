@@ -38,6 +38,8 @@ class ItemBase(BaseModel):
     image_url: str | None = None
     nutriscore: str | None = None
     food_group: str | None = None
+    weight_capacity: float | None = None
+    uom: str | None = None
 
     @field_validator("name", "item_type", "storage_location")
     @classmethod
