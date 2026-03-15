@@ -235,6 +235,10 @@
         },
         "notes": {
           "type": "string"
+        },
+        "stopOnSuccess": {
+          "description": "If true, stop the provider chain immediately when this provider returns any result, without waiting for a 'sufficient' match.",
+          "type": "boolean"
         }
       },
       "allOf": [

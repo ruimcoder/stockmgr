@@ -110,6 +110,13 @@ class BarcodeLookupService:
                 best_score = score
                 best_payload = payload
                 best_provider = provider
+            if provider_cfg.get("stopOnSuccess"):
+                return BarcodeLookupResult(
+                    found=True,
+                    provider=provider,
+                    data=payload,
+                    attempts=attempts,
+                )
             if (
                 self._is_sufficient(payload)
                 and self._config["lookup"]["sufficiency"]["stopOnFirstSufficientMatch"]
