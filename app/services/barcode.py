@@ -33,6 +33,9 @@ class BarcodeLookupService:
         validate(instance=config, schema=schema)
         return config
 
+    def reload_config(self) -> None:
+        self._config = self._load_provider_config()
+
     def _chain_for_item_type(self, item_type: str) -> list[str]:
         normalized = item_type.lower().strip()
         if normalized in {"food", "pantry"}:
