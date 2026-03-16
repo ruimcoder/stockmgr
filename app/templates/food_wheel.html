@@ -63,7 +63,7 @@
           <div class="fw-semibold">{{ entry.plan.total_meal_occasions }}</div>
         </div>
       </div>
-      {% if entry.items %}
+      {% if entry.plan_items %}
       <h3 class="h6">{{ t("food_wheel.plan_items_title") }}</h3>
       <table class="table table-sm table-hover align-middle">
         <thead>
@@ -75,7 +75,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for item in entry.items %}
+          {% for item in entry.plan_items %}
           <tr>
             <td>{{ item.name }}</td>
             <td>{{ item.item_type }}</td>

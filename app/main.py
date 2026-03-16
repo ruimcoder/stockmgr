@@ -1408,7 +1408,8 @@ def food_wheel_page(
             chart_total = 0
             chart_json = "[]"
 
-        # Build plan tabs: all plans with their targeted items
+        # Build plan tabs: convert to plain dicts to avoid DetachedInstanceError
+        # (session closes before Jinja2 renders; ORM objects expire on session close)
         plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
         plan_tabs = []
         for plan in plans:
@@ -1420,7 +1421,23 @@ def food_wheel_page(
                 )
                 .order_by(StockItem.name)
             ).all()
-            plan_tabs.append({"plan": plan, "items": plan_items})
+            plan_tabs.append({
+                "plan": {
+                    "location": plan.location,
+                    "participants": plan.participants,
+                    "stock_duration_days": plan.stock_duration_days,
+                    "total_meal_occasions": plan.total_meal_occasions,
+                },
+                "plan_items": [
+                    {
+                        "name": item.name,
+                        "item_type": item.item_type,
+                        "target_unidoses_location": item.target_unidoses_location,
+                        "unidose_per_pack": item.unidose_per_pack,
+                    }
+                    for item in plan_items
+                ],
+            })
 
     except Exception:
         _fw_log.exception("food_wheel_page unexpected error")

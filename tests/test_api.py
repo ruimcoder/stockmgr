@@ -1,7 +1,7 @@
 from sqlmodel import Session
 
 from app.db import engine
-from app.models import User
+from app.models import LocationPlan, User
 from app.schemas import BarcodeLookupResult
 
 
@@ -830,3 +830,30 @@ def test_product_detail_with_slash_in_name(client):
     response = client.get(f"/products/by-name/food/{encoded}")
     assert response.status_code == 200
     assert "Beans/Legumes" in response.text
+
+
+def test_food_wheel_with_location_plan(client):
+    """Food wheel page must not 500 when location plans exist (DetachedInstanceError regression)."""
+    # Create an item at "Cellar" with a target so the plan tab has items
+    client.post(
+        "/api/items",
+        json={
+            "barcode": "5600000099001",
+            "name": "Canned Beans",
+            "item_type": "food",
+            "storage_location": "Cellar",
+            "storage_bucket": "Shelf A",
+            "expiry_date": "2030-01-01",
+            "quantity": 5,
+            "unidose_per_pack": 2,
+            "target_unidoses_location": 20,
+        },
+    )
+    # Create a location plan for "Cellar" so plan_tabs is non-empty
+    with Session(engine) as session:
+        session.add(LocationPlan(location="Cellar", participants=2, stock_duration_days=90))
+        session.commit()
+
+    response = client.get("/food-wheel")
+    assert response.status_code == 200
+    assert "Food Wheel" in response.text
