@@ -2,6 +2,16 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-03-16
+
+### Fixed
+- **Product detail 500**: `LocationPlan.days` does not exist — corrected to `stock_duration_days` (#87)
+- **Food wheel 500 on mobile**: wrapped full route body in try/except with structured logging; inner chart errors also now isolated (#88)
+- **Unidose plan print**: added A4 print/PDF button with repeating table headers (#89)
+
+### Changed
+- Merged authlib security update 1.6.7 → 1.6.9 (#90)
+
 ## [1.1.0] - 2026-03-16
 
 ### Added

@@ -1360,60 +1360,71 @@ def food_wheel_page(
         return maybe_user
     user = maybe_user
 
-    # All locations for filter dropdown (unfiltered)
-    all_location_rows = session.exec(
-        select(StockItem.storage_location).distinct()
-    ).all()
-    all_locations: list[str] = sorted(loc for loc in all_location_rows if loc)
+    import logging as _logging
+    _fw_log = _logging.getLogger("stockmgr.food_wheel")
 
-    query = select(
-        StockItem.food_group,
-        StockItem.storage_location,
-        StockItem.quantity,
-        StockItem.unidose_per_pack,
-    )
-    if location:
-        query = query.where(StockItem.storage_location == location)
-    all_rows = session.exec(query).all()
-
-    items_for_chart = [
-        {"food_group": row[0], "quantity": row[2], "unidose_per_pack": row[3]}
-        for row in all_rows
-    ]
-    lang = request.session.get("language", "pt")
-    ungrouped_count = sum(1 for item in items_for_chart if not item["food_group"])
     try:
-        chart = food_group_chart_data(items_for_chart, language=lang)
-        chart_data = [
-            {
-                "label": g["label"],
-                "color": g["color"],
-                "unidoses": int(g["actual_unidoses"]),
-                "actual_pct": g["actual_pct"],
-                "target_pct": g["target_pct"],
-                "delta": g["delta_pct"],
-            }
-            for g in chart["group_stats"]
-        ]
-        chart_total = chart["total_unidoses"]
-    except Exception:
-        import logging; logging.exception("food_wheel_page chart error")
-        chart_data = []
-        chart_total = 0
-
-    # Build plan tabs: all plans with their targeted items
-    plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
-    plan_tabs = []
-    for plan in plans:
-        plan_items = session.exec(
-            select(StockItem)
-            .where(
-                StockItem.storage_location == plan.location,
-                StockItem.target_unidoses_location > 0,
-            )
-            .order_by(StockItem.name)
+        # All locations for filter dropdown (unfiltered)
+        all_location_rows = session.exec(
+            select(StockItem.storage_location).distinct()
         ).all()
-        plan_tabs.append({"plan": plan, "items": plan_items})
+        all_locations: list[str] = sorted(loc for loc in all_location_rows if loc)
+
+        query = select(
+            StockItem.food_group,
+            StockItem.storage_location,
+            StockItem.quantity,
+            StockItem.unidose_per_pack,
+        )
+        if location:
+            query = query.where(StockItem.storage_location == location)
+        all_rows = session.exec(query).all()
+
+        items_for_chart = [
+            {"food_group": row[0], "quantity": row[2], "unidose_per_pack": row[3]}
+            for row in all_rows
+        ]
+        lang = request.session.get("language", "pt")
+        ungrouped_count = sum(1 for item in items_for_chart if not item["food_group"])
+
+        try:
+            chart = food_group_chart_data(items_for_chart, language=lang)
+            chart_data = [
+                {
+                    "label": g["label"],
+                    "color": g["color"],
+                    "unidoses": int(g["actual_unidoses"]),
+                    "actual_pct": g["actual_pct"],
+                    "target_pct": g["target_pct"],
+                    "delta": g["delta_pct"],
+                }
+                for g in chart["group_stats"]
+            ]
+            chart_total = chart["total_unidoses"]
+            chart_json = json.dumps(chart_data)
+        except Exception:
+            _fw_log.exception("food_wheel chart build error")
+            chart_data = []
+            chart_total = 0
+            chart_json = "[]"
+
+        # Build plan tabs: all plans with their targeted items
+        plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
+        plan_tabs = []
+        for plan in plans:
+            plan_items = session.exec(
+                select(StockItem)
+                .where(
+                    StockItem.storage_location == plan.location,
+                    StockItem.target_unidoses_location > 0,
+                )
+                .order_by(StockItem.name)
+            ).all()
+            plan_tabs.append({"plan": plan, "items": plan_items})
+
+    except Exception:
+        _fw_log.exception("food_wheel_page unexpected error")
+        raise HTTPException(status_code=500, detail="Food wheel error — check server logs.")
 
     return _render(
         request,
@@ -1421,7 +1432,7 @@ def food_wheel_page(
         {
             "user": user,
             "chart_data": chart_data if chart_total > 0 else [],
-            "chart_json": json.dumps(chart_data),
+            "chart_json": chart_json,
             "ungrouped_count": ungrouped_count,
             "all_locations": all_locations,
             "selected_location": location or "",
@@ -1532,7 +1543,7 @@ def product_detail(
         if plan:
             location_plans[loc] = {
                 "participants": plan.participants,
-                "days": plan.days,
+                "days": plan.stock_duration_days,
                 "total_meal_occasions": plan.total_meal_occasions,
             }
 
