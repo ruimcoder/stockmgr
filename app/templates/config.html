@@ -64,4 +64,35 @@
     </div>
   </div>
 </div>
+<script>
+(function() {
+  const form = document.querySelector('#pane-providers form');
+  if (!form) return;
+  const textarea = form.querySelector('textarea[name="config_json"]');
+  if (!textarea) return;
+  let errorDiv = document.getElementById('json-validation-error');
+  if (!errorDiv) {
+    errorDiv = document.createElement('div');
+    errorDiv.id = 'json-validation-error';
+    errorDiv.className = 'alert alert-danger d-none mt-2';
+    textarea.parentElement.insertBefore(errorDiv, textarea.nextSibling);
+  }
+  form.addEventListener('submit', function(e) {
+    errorDiv.classList.add('d-none');
+    errorDiv.textContent = '';
+    try {
+      JSON.parse(textarea.value);
+    } catch (err) {
+      e.preventDefault();
+      errorDiv.textContent = '{{ t("config.json_invalid") }}: ' + err.message;
+      errorDiv.classList.remove('d-none');
+      textarea.focus();
+      const match = err.message.match(/position (\d+)/i) || err.message.match(/line (\d+)/i);
+      if (match) {
+        errorDiv.textContent += ' (near position ' + match[1] + ')';
+      }
+    }
+  });
+})();
+</script>
 {% endblock %}

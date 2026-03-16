@@ -62,6 +62,7 @@
                 <li><a class="dropdown-item" href="/admin/config">{{ t("nav.config") }}</a></li>
                 <li><a class="dropdown-item" href="/admin/backup">{{ t("nav.backup") }}</a></li>
                 <li><a class="dropdown-item" href="/admin/restore">{{ t("nav.restore") }}</a></li>
+                <li><a class="dropdown-item" href="/admin/info">{{ t("nav.app_info") }}</a></li>
                 {% endif %}
               </ul>
             </li>
@@ -71,6 +72,7 @@
               <a class="btn btn-outline-dark {% if lang == 'en' %}active{% endif %}" href="/lang/en">{{ t("lang.en") }}</a>
               <a class="btn btn-outline-dark {% if lang == 'pt' %}active{% endif %}" href="/lang/pt">{{ t("lang.pt") }}</a>
             </div>
+            <span class="badge bg-secondary text-white align-self-center" title="{{ t('nav.version_title') }}">v{{ app_version_semantic }}</span>
             <a class="btn btn-sm btn-outline-danger" href="/auth/logout">{{ t("nav.logout") }}</a>
           </div>
         </div>
