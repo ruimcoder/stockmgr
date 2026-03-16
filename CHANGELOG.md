@@ -2,7 +2,16 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.1.2] - 2026-03-17
+## [1.1.3] - 2026-03-17
+
+### Fixed
+- **Item edit "Save changes" does nothing (#93)**: nested `<form>` (image upload) inside the main form caused the browser to implicitly close the outer form at its `</form>` tag, leaving the Save button outside any form. Fixed by replacing the inner form with a `<div>` and adding `formaction`/`formmethod`/`formenctype` attributes directly on the Upload button so it submits to the correct endpoint while remaining part of the outer form.
+
+### Changed
+- **Save button dirty-check**: in edit mode the Save button is now disabled by default and only enabled once any form field value has changed, preventing accidental saves.
+- **Cancel button in edit mode**: now links back to the product detail page instead of home.
+
+
 
 ### Fixed
 - **Food wheel 500 (regression)**: `plan_tabs` was passing live SQLAlchemy ORM objects to Jinja2; after the session closes, Starlette renders the template and attribute access on expired instances raises `DetachedInstanceError`. Fixed by converting `LocationPlan` and `StockItem` entries to plain dicts before returning from the route. Also renamed dict key `items` → `plan_items` to avoid collision with Python's built-in `dict.items` method, which Jinja2 resolves as a callable instead of the dict value.
