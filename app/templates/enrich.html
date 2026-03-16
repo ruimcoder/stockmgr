@@ -2,18 +2,74 @@
 {% block content %}
 <h1 class="h4 mb-3">{{ t("admin.enrich_title") }}</h1>
 
-{% if message %}
-<div class="alert alert-info py-2">{{ t("msg.enrich-done") }} ({{ enriched_count }})</div>
-{% endif %}
-
 <div class="card">
   <div class="card-header">{{ t("admin.enrich_title") }}</div>
   <div class="card-body">
     <p class="text-muted mb-3">{{ t("admin.enrich_description") }}</p>
-    <form method="post" action="/admin/enrich-items">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-      <button class="btn btn-outline-primary" type="submit">{{ t("admin.enrich_button") }}</button>
-    </form>
+    <button class="btn btn-outline-primary" id="enrich-btn" type="button">{{ t("admin.enrich_button") }}</button>
+    <div id="enrich-status" class="mt-3 d-none">
+      <div class="progress mb-2" style="height:20px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated" id="enrich-progress" role="progressbar" style="width:0%">0%</div>
+      </div>
+      <div id="enrich-current" class="small text-muted"></div>
+      <div id="enrich-log" class="mt-2" style="max-height:260px;overflow-y:auto;font-size:0.82rem;"></div>
+    </div>
   </div>
 </div>
+
+<script>
+document.getElementById("enrich-btn").addEventListener("click", function() {
+  const btn = this;
+  btn.disabled = true;
+  const status = document.getElementById("enrich-status");
+  const progressBar = document.getElementById("enrich-progress");
+  const currentEl = document.getElementById("enrich-current");
+  const logEl = document.getElementById("enrich-log");
+  status.classList.remove("d-none");
+  logEl.innerHTML = "";
+  currentEl.textContent = "";
+  progressBar.style.width = "0%";
+  progressBar.textContent = "0%";
+
+  const evtSource = new EventSource("/admin/enrich-stream");
+  evtSource.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    if (data.done) {
+      evtSource.close();
+      progressBar.style.width = "100%";
+      progressBar.textContent = "100%";
+      progressBar.classList.remove("progress-bar-animated");
+      progressBar.classList.add("bg-success");
+      currentEl.textContent = "";
+      btn.disabled = false;
+      const logEntry = document.createElement("div");
+      logEntry.className = "text-success fw-semibold";
+      logEntry.textContent = "✓ Done — " + data.enriched + " item(s) updated";
+      logEl.appendChild(logEntry);
+      return;
+    }
+    if (data.total > 0) {
+      const pct = Math.round(data.current / data.total * 100);
+      progressBar.style.width = pct + "%";
+      progressBar.textContent = pct + "%";
+    }
+    currentEl.textContent = data.current + " / " + data.total + " — " + data.name;
+    if (data.result) {
+      const logEntry = document.createElement("div");
+      logEntry.className = data.result === "updated" ? "text-success" : (data.result === "skipped" ? "text-muted" : "text-danger");
+      const icon = data.result === "updated" ? "✓" : (data.result === "skipped" ? "–" : "✗");
+      logEntry.textContent = icon + " " + data.name + (data.provider ? " [" + data.provider + "]" : "");
+      logEl.appendChild(logEntry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  };
+  evtSource.onerror = function() {
+    evtSource.close();
+    btn.disabled = false;
+    currentEl.textContent = "Connection error.";
+    progressBar.classList.remove("progress-bar-animated");
+    progressBar.classList.add("bg-danger");
+  };
+});
+</script>
 {% endblock %}

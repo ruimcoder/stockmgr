@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">{{ t("info.title") }}</h1>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">{{ t("info.version_section") }}</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td class="text-muted w-50">{{ t("info.version") }}</td><td class="fw-semibold">{{ app_version_semantic }}</td></tr>
+            <tr><td class="text-muted">{{ t("info.build_date") }}</td><td>{{ app_build_date }}</td></tr>
+            <tr><td class="text-muted">{{ t("info.build_sha") }}</td><td class="font-monospace small">{{ runtime_sha }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">{{ t("info.database_section") }}</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td class="text-muted w-50">{{ t("info.db_size") }}</td><td>{{ db_size_str }}</td></tr>
+            <tr><td class="text-muted">{{ t("info.db_items") }}</td><td>{{ db_item_count }}</td></tr>
+            <tr><td class="text-muted">{{ t("info.db_users") }}</td><td>{{ db_user_count }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

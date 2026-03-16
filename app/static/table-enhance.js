@@ -159,6 +159,7 @@
       prevButton.disabled = state.page <= 1;
       nextButton.disabled = state.page >= totalPages;
       pageInfo.textContent = `Page ${state.page} / ${totalPages}`;
+      updateSortIndicators();
     };
 
     Array.from(headerRow.cells).forEach((th, index) => {
@@ -176,6 +177,28 @@
         render();
       });
     });
+
+    const updateSortIndicators = () => {
+      Array.from(headerRow.cells).forEach((th, index) => {
+        const icon = th.querySelector(".sort-icon");
+        if (!sortable[index]) return;
+        if (!icon) {
+          const span = document.createElement("span");
+          span.className = "sort-icon ms-1 text-muted";
+          th.appendChild(span);
+        }
+        const s = th.querySelector(".sort-icon");
+        if (state.sortIndex === index) {
+          s.textContent = state.sortDir === 1 ? " ↑" : " ↓";
+          s.classList.remove("text-muted");
+          s.classList.add("text-primary");
+        } else {
+          s.textContent = " ⇅";
+          s.classList.remove("text-primary");
+          s.classList.add("text-muted");
+        }
+      });
+    };
 
     searchInput.addEventListener("input", () => {
       state.globalFilter = searchInput.value;
@@ -197,6 +220,7 @@
     });
 
     render();
+    updateSortIndicators();
   });
 })();
 

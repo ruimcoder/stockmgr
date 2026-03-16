@@ -52,6 +52,7 @@ from app.services.telegram import (
     TelegramSecurityError,
     TelegramService,
 )
+from app.version import APP_VERSION as _APP_VERSION, BUILD_DATE as _BUILD_DATE
 
 settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent
@@ -198,6 +199,8 @@ def _render(
         "lang": lang,
         "t": lambda key: translate(lang, key),
         "csrf_token": _get_or_create_csrf_token(request),
+        "app_version_semantic": _APP_VERSION,
+        "app_build_date": _BUILD_DATE,
     }
     if context:
         payload.update(context)
@@ -1378,23 +1381,25 @@ def food_wheel_page(
         for row in all_rows
     ]
     lang = request.session.get("language", "pt")
-    chart = food_group_chart_data(items_for_chart, language=lang)
-
-    # Normalize group_stats keys for template
-    chart_data = [
-        {
-            "label": g["label"],
-            "color": g["color"],
-            "unidoses": int(g["actual_unidoses"]),
-            "actual_pct": g["actual_pct"],
-            "target_pct": g["target_pct"],
-            "delta": g["delta_pct"],
-        }
-        for g in chart["group_stats"]
-    ]
-    ungrouped_count = sum(
-        1 for item in items_for_chart if not item["food_group"]
-    )
+    ungrouped_count = sum(1 for item in items_for_chart if not item["food_group"])
+    try:
+        chart = food_group_chart_data(items_for_chart, language=lang)
+        chart_data = [
+            {
+                "label": g["label"],
+                "color": g["color"],
+                "unidoses": int(g["actual_unidoses"]),
+                "actual_pct": g["actual_pct"],
+                "target_pct": g["target_pct"],
+                "delta": g["delta_pct"],
+            }
+            for g in chart["group_stats"]
+        ]
+        chart_total = chart["total_unidoses"]
+    except Exception:
+        import logging; logging.exception("food_wheel_page chart error")
+        chart_data = []
+        chart_total = 0
 
     # Build plan tabs: all plans with their targeted items
     plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
@@ -1415,7 +1420,7 @@ def food_wheel_page(
         "food_wheel.html",
         {
             "user": user,
-            "chart_data": chart_data if chart["total_unidoses"] > 0 else [],
+            "chart_data": chart_data if chart_total > 0 else [],
             "chart_json": json.dumps(chart_data),
             "ungrouped_count": ungrouped_count,
             "all_locations": all_locations,
@@ -1427,7 +1432,10 @@ def food_wheel_page(
 
 @app.get("/renewals")
 def renewal_plan(
-    request: Request, session: Session = Depends(get_session), days: int | None = None
+    request: Request,
+    session: Session = Depends(get_session),
+    days: int | None = None,
+    location: str | None = None,
 ):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):
@@ -1437,15 +1445,23 @@ def renewal_plan(
     window_days = days if days and days > 0 else settings.renewal_window_days
     start = date.today()
     end = start + timedelta(days=window_days)
+
+    all_location_rows = session.exec(
+        select(StockItem.storage_location).distinct()
+    ).all()
+    all_locations: list[str] = sorted(loc for loc in all_location_rows if loc)
+
     statement = (
         select(StockItem)
         .where(
-            StockItem.renewal_date.is_not(None),
-            StockItem.renewal_date >= start,
-            StockItem.renewal_date <= end,
+            StockItem.expiry_date.is_not(None),
+            StockItem.expiry_date >= start,
+            StockItem.expiry_date <= end,
         )
-        .order_by(StockItem.renewal_date, StockItem.name)
+        .order_by(StockItem.expiry_date, StockItem.name)
     )
+    if location:
+        statement = statement.where(StockItem.storage_location == location)
     rows = session.exec(statement).all()
     return _render(
         request,
@@ -1454,6 +1470,8 @@ def renewal_plan(
             "user": user,
             "window_days": window_days,
             "rows": rows,
+            "all_locations": all_locations,
+            "selected_location": location or "",
         },
     )
 
@@ -2358,6 +2376,91 @@ def admin_enrich_page(
     )
 
 
+@app.get("/admin/enrich-stream")
+async def admin_enrich_stream(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    """SSE endpoint that streams per-item enrichment progress."""
+    import asyncio
+
+    async def _generate():
+        items_with_barcode = session.exec(
+            select(StockItem).where(
+                StockItem.barcode.is_not(None),  # type: ignore[union-attr]
+                StockItem.barcode != "",
+            )
+        ).all()
+        total = len(items_with_barcode)
+        enriched = 0
+        for i, item in enumerate(items_with_barcode):
+            skipped = item.image_url and item.nutriscore and item.food_group
+            result_tag = "skipped"
+            provider_name = ""
+            if not skipped:
+                try:
+                    result = await barcode_service.lookup(
+                        barcode=item.barcode, item_type=item.item_type
+                    )
+                    if result.found and result.data:
+                        changed = False
+                        if not item.image_url and result.data.get("imageUrl"):
+                            item.image_url = result.data["imageUrl"]
+                            changed = True
+                        if not item.nutriscore and result.data.get("nutriscore"):
+                            item.nutriscore = result.data["nutriscore"]
+                            changed = True
+                        if not item.food_group:
+                            inferred = infer_food_group(
+                                name=result.data.get("name") or item.name,
+                                item_type=item.item_type,
+                                food_groups_tags=result.data.get("foodGroupsTags"),
+                            )
+                            if inferred:
+                                item.food_group = inferred
+                                changed = True
+                        if not item.weight_capacity and result.data.get("size"):
+                            wc, u = _parse_size(result.data.get("size"))
+                            if wc is not None:
+                                item.weight_capacity = wc
+                                item.uom = u
+                                changed = True
+                        if changed:
+                            item.updated_at = datetime.now(UTC)
+                            session.add(item)
+                            session.commit()
+                            enriched += 1
+                            result_tag = "updated"
+                            provider_name = result.provider or ""
+                        else:
+                            result_tag = "skipped"
+                    else:
+                        result_tag = "not_found"
+                except Exception:
+                    result_tag = "error"
+            progress_data = json.dumps({
+                "current": i + 1,
+                "total": total,
+                "name": item.name,
+                "result": result_tag,
+                "provider": provider_name,
+            })
+            yield f"data: {progress_data}\n\n"
+            await asyncio.sleep(0)
+        done_data = json.dumps({"done": True, "enriched": enriched})
+        yield f"data: {done_data}\n\n"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.post("/admin/enrich-items")
 async def admin_enrich_items(
     request: Request,
@@ -2413,6 +2516,48 @@ async def admin_enrich_items(
             enriched += 1
     session.commit()
     return RedirectResponse(f"/admin/enrich?m=enrich-done&enriched={enriched}", status_code=303)
+
+
+@app.get("/admin/info")
+def admin_info_page(
+    request: Request,
+    session: Session = Depends(get_session),
+    admin: User = Depends(_require_admin_user),
+):
+    import os
+    from sqlmodel import text as sql_text  # noqa: F401
+
+    db_size_str = "N/A"
+    db_url = settings.database_url
+    if db_url.startswith("sqlite"):
+        try:
+            from app.db import _sqlite_path_from_url
+            db_path = _sqlite_path_from_url(db_url)
+            if db_path:
+                if not db_path.is_absolute():
+                    db_path = (Path.cwd() / db_path).resolve()
+                size_bytes = os.path.getsize(db_path)
+                if size_bytes >= 1_048_576:
+                    db_size_str = f"{size_bytes / 1_048_576:.1f} MB"
+                else:
+                    db_size_str = f"{size_bytes / 1024:.1f} KB"
+        except Exception:
+            pass
+
+    db_item_count = session.exec(select(func.count()).select_from(StockItem)).one()
+    db_user_count = session.exec(select(func.count()).select_from(User)).one()
+
+    return _render(
+        request,
+        "admin_info.html",
+        {
+            "user": admin,
+            "runtime_sha": settings.app_version,
+            "db_size_str": db_size_str,
+            "db_item_count": db_item_count,
+            "db_user_count": db_user_count,
+        },
+    )
 
 
 @app.get("/admin/backup")
@@ -2677,6 +2822,7 @@ async def admin_config_save(
 
 
 
+@app.get("/items/unidose-plan")
 def unidose_plan_page(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
     if isinstance(maybe_user, RedirectResponse):

@@ -1,11 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="h4 mb-3">{{ t("renewal.title") }}</h1>
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ t("renewal.title") }}</h1>
+  <button class="btn btn-sm btn-outline-secondary d-print-none" onclick="window.print()">
+    <i class="bi bi-printer"></i> {{ t("renewal.print") }}
+  </button>
+</div>
 
-<form class="row g-2 mb-3" method="get" action="/renewals">
-  <div class="col-md-4">
+<form class="row g-2 mb-3 d-print-none" method="get" action="/renewals">
+  <div class="col-md-3">
     <label class="form-label">{{ t("renewal.window_days") }}</label>
     <input class="form-control" type="number" min="1" name="days" value="{{ window_days }}" />
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">{{ t("renewal.filter_location") }}</label>
+    <select class="form-select" name="location">
+      <option value="">{{ t("renewal.all_locations") }}</option>
+      {% for loc in all_locations %}
+      <option value="{{ loc }}"{% if selected_location == loc %} selected{% endif %}>{{ loc }}</option>
+      {% endfor %}
+    </select>
   </div>
   <div class="col-md-2 d-flex align-items-end">
     <button class="btn btn-primary w-100" type="submit">{{ t("renewal.apply") }}</button>
@@ -23,7 +37,7 @@
           <th>{{ t("table.location") }}</th>
           <th>{{ t("table.bucket") }}</th>
           <th>{{ t("table.quantity") }}</th>
-          <th>{{ t("table.renewal") }}</th>
+          <th>{{ t("table.expiry") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -35,7 +49,7 @@
           <td>{{ item.storage_location }}</td>
           <td>{{ item.storage_bucket or "-" }}</td>
           <td>{{ item.quantity }}</td>
-          <td>{{ item.renewal_date | datefmt }}</td>
+          <td>{{ item.expiry_date | datefmt }}</td>
         </tr>
         {% else %}
         <tr>
@@ -46,5 +60,15 @@
     </table>
   </div>
 </div>
+
+<style>
+@media print {
+  @page { size: A4; margin: 15mm; }
+  .table-enhance-controls, .table-pagination { display: none !important; }
+  .card { border: none !important; }
+  table { font-size: 10pt; }
+  thead { display: table-header-group; }
+}
+</style>
 {% endblock %}
 
