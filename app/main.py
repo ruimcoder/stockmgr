@@ -1633,6 +1633,7 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
         product_name=item.name,
     )
     plans_map = {p.location: p.total_meal_occasions for p in session.exec(select(LocationPlan)).all()}
+    back_url = f"/products/by-name/{item.item_type}/{item.name.replace(' ', '%20')}"
     return _render(
         request,
         "item_form.html",
@@ -1645,6 +1646,7 @@ def item_edit(item_id: int, request: Request, session: Session = Depends(get_ses
             "food_groups": FOOD_GROUPS,
             "plan_locations": _plan_locations(session),
             "location_plans_json": json.dumps(plans_map),
+            "back_url": back_url,
         },
     )
 

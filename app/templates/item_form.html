@@ -147,12 +147,14 @@
               <input class="form-control mb-2" name="image_url" id="image-url-input"
                      value="{{ draft.image_url or '' }}" placeholder="https://…" />
               <label class="form-label small text-muted mb-1">{{ t("label.or_upload_image") }}</label>
-              <form method="post" action="/items/{{ draft.id }}/upload-image"
-                    enctype="multipart/form-data" class="d-flex gap-2">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+              <div class="d-flex gap-2">
                 <input type="file" name="file" accept="image/*" class="form-control form-control-sm" />
-                <button type="submit" class="btn btn-sm btn-secondary text-nowrap">{{ t("action.upload") }}</button>
-              </form>
+                <button type="submit"
+                        formaction="/items/{{ draft.id }}/upload-image"
+                        formmethod="post"
+                        formenctype="multipart/form-data"
+                        class="btn btn-sm btn-secondary text-nowrap">{{ t("action.upload") }}</button>
+              </div>
             </div>
           </div>
         </div>
@@ -441,8 +443,15 @@
   {% endif %}
 
   <div class="d-flex gap-2 mt-4 align-items-center flex-wrap">
-    <button class="btn btn-primary" type="submit">{% if mode == "edit" %}{{ t("common.save_changes") }}{% else %}{{ t("common.create_item") }}{% endif %}</button>
+    <button class="btn btn-primary" id="save-btn" type="submit"
+      {% if mode == "edit" %}disabled{% endif %}>
+      {% if mode == "edit" %}{{ t("common.save_changes") }}{% else %}{{ t("common.create_item") }}{% endif %}
+    </button>
+    {% if mode == "edit" %}
+    <a class="btn btn-outline-secondary" href="{{ back_url or '/' }}">{{ t("common.cancel") }}</a>
+    {% else %}
     <a class="btn btn-outline-secondary" href="/">{{ t("common.cancel") }}</a>
+    {% endif %}
     {% if mode != "edit" %}
     <div class="form-check ms-3 mb-0">
       <input class="form-check-input" type="checkbox" name="continue_adding" id="continue-adding-check" value="1">
@@ -605,6 +614,28 @@
           localStorage.setItem("lastLocation", hiddenLocs[0].value);
         }
       });
+    }
+
+    // ── Dirty-check: enable Save only when form data changes (EDIT mode) ──
+    const saveBtn = document.getElementById("save-btn");
+    const editForm = document.querySelector('form[action$="/update"]');
+    if (saveBtn && editForm) {
+      function getFormSnapshot() {
+        const parts = [];
+        editForm.querySelectorAll(
+          'input:not([type=hidden]):not([type=file]), select, textarea'
+        ).forEach(el => {
+          const v = (el.type === "checkbox" || el.type === "radio") ? el.checked : el.value;
+          parts.push(el.name + "=" + v);
+        });
+        return parts.join("|");
+      }
+      const originalSnapshot = getFormSnapshot();
+      function checkDirty() {
+        saveBtn.disabled = (getFormSnapshot() === originalSnapshot);
+      }
+      editForm.addEventListener("input", checkDirty);
+      editForm.addEventListener("change", checkDirty);
     }
 
     // ── Location plan modal for new locations (#53) ──────────────────────
