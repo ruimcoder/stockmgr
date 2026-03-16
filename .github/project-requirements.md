@@ -104,3 +104,35 @@ The application must ship with this default provider order:
 - Excel/CSV schema and validation rules
 - Notification/reminder behavior for upcoming renewals
 
+## Implementation status (v1.1.0)
+
+### Implemented
+- ✅ Web application with OAuth authentication (Google + Microsoft) and local dev mode
+- ✅ Persistent SQLite storage with automatic schema migration
+- ✅ All required item attributes (name, type, location, bucket, expiry, temperature, humidity, renewal date, barcode)
+- ✅ Barcode lookup with AJAX-based flow (no page refresh) and configurable provider chain
+- ✅ Provider abstraction with priority config in `config/barcode-providers.default.json`
+- ✅ Open Food Facts (Portugal-first), Open Products Facts, USDA, openFDA, UPCitemdb, Go-UPC, Continente PT
+- ✅ `stopOnSuccess` flag stops chain on first successful match
+- ✅ Manual item entry, data-grid view/edit, datagrid column sorting/filtering/paging
+- ✅ Excel and CSV import; XLSX export
+- ✅ Calendar sync abstraction (Google/Microsoft provider modes)
+- ✅ Secure Telegram operations channel with webhook secret + allowed user/chat ID validation
+- ✅ Mobile-first responsive UI with PWA support
+- ✅ Portuguese and English UI
+- ✅ User registration with admin approval workflow
+- ✅ Shopping list with quantity-to-buy calculations
+- ✅ Renewal plan (expiry-based) with location filter and print/PDF
+- ✅ Food wheel chart (Portuguese food wheel distribution)
+- ✅ Unidose planning per location
+- ✅ Product image upload; nutriscore display
+- ✅ Backup/restore admin pages
+- ✅ Live barcode provider config editing (`/admin/config`)
+- ✅ Semantic versioning; application info page (`/admin/info`)
+
+### Pending / open refinement
+- ⏳ Provider health scoring, timeout, and retry policy for fallback chain
+- ⏳ Excel/CSV schema validation rules documentation
+- ⏳ Notification/reminder behavior for upcoming renewals (calendar appointment creation)
+- ⏳ OAuth provider and account model documentation
+

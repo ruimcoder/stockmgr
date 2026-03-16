@@ -1,6 +1,8 @@
 # stockmgr
 
-Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcode-assisted item entry, CSV/XLSX import, renewal-date calendar sync, and configurable product-information providers.
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
+
+Web MVP to manage SHTF stock inventorywith OAuth-capable authentication, barcode-assisted item entry, CSV/XLSX import, renewal-date calendar sync, and configurable product-information providers.
 
 ## MVP capabilities
 - OAuth-capable auth (Google/Microsoft) plus local development login mode.
@@ -29,6 +31,12 @@ Web MVP to manage SHTF stock inventory with OAuth-capable authentication, barcod
 - Users can register; account access requires admin approval. Admins can approve/reject users and toggle admin role.
 - Calendar sync service abstraction for Google or Microsoft provider modes.
 - Automated tests and GitHub Actions for CI + image deployment.
+- Renewal plan shows items expiring within a configurable window with location filter and browser print/PDF export.
+- Real-time enrich progress: SSE-based per-item status stream during barcode re-enrichment.
+- Barcode lookup is AJAX-based with no page refresh; provider attempt badges show per-provider results.
+- Sort direction indicators (↑/↓/⇅) on all table columns; clicking header toggles ascending/descending.
+- Configuration page validates JSON format before saving barcode provider config.
+- Application info page (`/admin/info`) shows semantic version, build date, deploy SHA, and database stats.
 
 ## Project structure
 - App code: `app/`
@@ -365,3 +373,6 @@ npx --yes playwright@1.54.2 test -c playwright.config.js
 ## Agent and requirements docs
 - Copilot instructions: `.github/copilot-instructions.md`
 - Requirements baseline: `.github/project-requirements.md`
+
+## Changelog
+See [CHANGELOG.md](CHANGELOG.md) for version history.
