@@ -2,6 +2,11 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-03-17
+
+### Fixed
+- **Food wheel 500 (regression)**: `plan_tabs` was passing live SQLAlchemy ORM objects to Jinja2; after the session closes, Starlette renders the template and attribute access on expired instances raises `DetachedInstanceError`. Fixed by converting `LocationPlan` and `StockItem` entries to plain dicts before returning from the route. Also renamed dict key `items` → `plan_items` to avoid collision with Python's built-in `dict.items` method, which Jinja2 resolves as a callable instead of the dict value.
+
 ## [1.1.1] - 2026-03-16
 
 ### Fixed
