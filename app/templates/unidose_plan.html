@@ -15,7 +15,7 @@
 
 <form method="post" action="/items/unidose-plan">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle" data-enhanced-table>
     <thead>
       <tr>
         <th>{{ t("table.name") }}</th>
@@ -27,7 +27,7 @@
     <tbody>
       {% for p in products %}
       <tr>
-        <td>{{ p.name }}</td>
+        <td><a class="text-decoration-none" href="/products/by-name/{{ p.item_type | urlencode_path }}/{{ p.name | urlencode_path }}">{{ p.name }}</a></td>
         <td>{{ p.item_type }}</td>
         <td>
           <input

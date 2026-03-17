@@ -16,84 +16,6 @@
   </form>
 </div>
 
-{% if plan_tabs %}
-<div class="mb-4">
-  <h2 class="h6 mb-2">{{ t("food_wheel.plan_details") }}</h2>
-  <ul class="nav nav-tabs" id="planTabs" role="tablist">
-    {% for entry in plan_tabs %}
-    {% set is_active = (selected_location == entry.plan.location) or (loop.first and not selected_location) %}
-    <li class="nav-item" role="presentation">
-      <button
-        class="nav-link {% if is_active %}active{% endif %}"
-        id="tab-{{ loop.index }}-btn"
-        data-bs-toggle="tab"
-        data-bs-target="#tab-{{ loop.index }}"
-        type="button"
-        role="tab"
-        aria-controls="tab-{{ loop.index }}"
-        aria-selected="{{ 'true' if is_active else 'false' }}"
-      >{{ entry.plan.location }}</button>
-    </li>
-    {% endfor %}
-  </ul>
-  <div class="tab-content border border-top-0 rounded-bottom p-3" id="planTabsContent">
-    {% for entry in plan_tabs %}
-    {% set is_active = (selected_location == entry.plan.location) or (loop.first and not selected_location) %}
-    <div
-      class="tab-pane fade {% if is_active %}show active{% endif %}"
-      id="tab-{{ loop.index }}"
-      role="tabpanel"
-      aria-labelledby="tab-{{ loop.index }}-btn"
-    >
-      <div class="row g-3 mb-3">
-        <div class="col-auto">
-          <small class="text-muted">{{ t("food_wheel.plan_location") }}</small>
-          <div class="fw-semibold">{{ entry.plan.location }}</div>
-        </div>
-        <div class="col-auto">
-          <small class="text-muted">{{ t("food_wheel.plan_participants") }}</small>
-          <div class="fw-semibold">{{ entry.plan.participants }}</div>
-        </div>
-        <div class="col-auto">
-          <small class="text-muted">{{ t("food_wheel.plan_duration") }}</small>
-          <div class="fw-semibold">{{ entry.plan.stock_duration_days }}</div>
-        </div>
-        <div class="col-auto">
-          <small class="text-muted">{{ t("food_wheel.plan_total_occasions") }}</small>
-          <div class="fw-semibold">{{ entry.plan.total_meal_occasions }}</div>
-        </div>
-      </div>
-      {% if entry.plan_items %}
-      <h3 class="h6">{{ t("food_wheel.plan_items_title") }}</h3>
-      <table class="table table-sm table-hover align-middle">
-        <thead>
-          <tr>
-            <th>{{ t("table.name") }}</th>
-            <th>{{ t("table.type") }}</th>
-            <th>{{ t("table.target_unidoses") }}</th>
-            <th>{{ t("table.unidose_per_pack") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in entry.plan_items %}
-          <tr>
-            <td>{{ item.name }}</td>
-            <td>{{ item.item_type }}</td>
-            <td>{{ item.target_unidoses_location }}</td>
-            <td>{{ item.unidose_per_pack }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <p class="text-muted">{{ t("food_wheel.plan_no_items") }}</p>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 {% if not chart_data %}
 <div class="alert alert-info">{{ t("food_wheel.no_stock") }}</div>
 {% else %}
@@ -102,7 +24,7 @@
     <canvas id="food-wheel-chart" style="max-height:340px;"></canvas>
   </div>
   <div class="col-md-7">
-    <table class="table table-sm table-hover align-middle">
+    <table class="table table-sm table-hover align-middle" data-enhanced-table>
       <thead>
         <tr>
           <th>{{ t("food_wheel.group") }}</th>
@@ -179,5 +101,83 @@
   });
 })();
 </script>
+{% endif %}
+
+{% if plan_tabs %}
+<div class="mb-4 mt-4">
+  <h2 class="h6 mb-2">{{ t("food_wheel.plan_details") }}</h2>
+  <ul class="nav nav-tabs" id="planTabs" role="tablist">
+    {% for entry in plan_tabs %}
+    {% set is_active = (selected_location == entry.plan.location) or (loop.first and not selected_location) %}
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link {% if is_active %}active{% endif %}"
+        id="tab-{{ loop.index }}-btn"
+        data-bs-toggle="tab"
+        data-bs-target="#tab-{{ loop.index }}"
+        type="button"
+        role="tab"
+        aria-controls="tab-{{ loop.index }}"
+        aria-selected="{{ 'true' if is_active else 'false' }}"
+      >{{ entry.plan.location }}</button>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="tab-content border border-top-0 rounded-bottom p-3" id="planTabsContent">
+    {% for entry in plan_tabs %}
+    {% set is_active = (selected_location == entry.plan.location) or (loop.first and not selected_location) %}
+    <div
+      class="tab-pane fade {% if is_active %}show active{% endif %}"
+      id="tab-{{ loop.index }}"
+      role="tabpanel"
+      aria-labelledby="tab-{{ loop.index }}-btn"
+    >
+      <div class="row g-3 mb-3">
+        <div class="col-auto">
+          <small class="text-muted">{{ t("food_wheel.plan_location") }}</small>
+          <div class="fw-semibold">{{ entry.plan.location }}</div>
+        </div>
+        <div class="col-auto">
+          <small class="text-muted">{{ t("food_wheel.plan_participants") }}</small>
+          <div class="fw-semibold">{{ entry.plan.participants }}</div>
+        </div>
+        <div class="col-auto">
+          <small class="text-muted">{{ t("food_wheel.plan_duration") }}</small>
+          <div class="fw-semibold">{{ entry.plan.stock_duration_days }}</div>
+        </div>
+        <div class="col-auto">
+          <small class="text-muted">{{ t("food_wheel.plan_total_occasions") }}</small>
+          <div class="fw-semibold">{{ entry.plan.total_meal_occasions }}</div>
+        </div>
+      </div>
+      {% if entry.plan_items %}
+      <h3 class="h6">{{ t("food_wheel.plan_items_title") }}</h3>
+      <table class="table table-sm table-hover align-middle" data-enhanced-table>
+        <thead>
+          <tr>
+            <th>{{ t("table.name") }}</th>
+            <th>{{ t("table.type") }}</th>
+            <th>{{ t("table.target_unidoses") }}</th>
+            <th>{{ t("table.unidose_per_pack") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in entry.plan_items %}
+          <tr>
+            <td>{{ item.name }}</td>
+            <td>{{ item.item_type }}</td>
+            <td>{{ item.target_unidoses_location }}</td>
+            <td>{{ item.unidose_per_pack }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted">{{ t("food_wheel.plan_no_items") }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
 {% endif %}
 {% endblock %}

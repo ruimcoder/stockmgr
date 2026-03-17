@@ -58,6 +58,12 @@ settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent
 logger = logging.getLogger(__name__)
 
+# Food group lookup map for templates (key → {name_en, name_pt, color})
+_FOOD_GROUPS_MAP: dict[str, dict] = {
+    fg.key: {"name_en": fg.name_en, "name_pt": fg.name_pt, "color": fg.color}
+    for fg in FOOD_GROUPS
+}
+
 _DEFAULT_SECRET_KEY = "change-me-for-production"
 
 
@@ -201,6 +207,7 @@ def _render(
         "csrf_token": _get_or_create_csrf_token(request),
         "app_version_semantic": _APP_VERSION,
         "app_build_date": _BUILD_DATE,
+        "food_groups_map": _FOOD_GROUPS_MAP,
     }
     if context:
         payload.update(context)
@@ -1079,6 +1086,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             StockItem.item_type,
             func.sum(StockItem.quantity).label("quantity"),
             func.max(StockItem.nutriscore).label("nutriscore"),
+            func.max(StockItem.food_group).label("food_group"),
         )
         .group_by(StockItem.name, StockItem.item_type)
         .order_by(StockItem.name)
@@ -1106,6 +1114,7 @@ def stock_views(request: Request, session: Session = Depends(get_session)):
             func.sum(StockItem.quantity).label("quantity"),
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.nutriscore).label("nutriscore"),
+            func.max(StockItem.food_group).label("food_group"),
         )
         .group_by(
             StockItem.name,
@@ -1219,6 +1228,21 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
 
     rows = [value for value in grouped.values() if value["total_quantity_to_buy"] > 0]
     rows.sort(key=lambda item: (item["name"], item["item_type"]))
+
+    # Collect one image_url per product for hover cards
+    image_rows = session.exec(
+        select(StockItem.name, StockItem.item_type, StockItem.image_url)
+        .where(StockItem.image_url.isnot(None))
+        .distinct()
+    ).all()
+    image_lookup: dict[tuple[str, str], str] = {}
+    for r_name, r_type, r_img in image_rows:
+        key = (r_name, r_type)
+        if key not in image_lookup and r_img:
+            image_lookup[key] = r_img
+    for row in rows:
+        row["image_url"] = image_lookup.get((row["name"], row["item_type"]))
+
     return _render(request, "shopping_list.html", {"user": user, "rows": rows})
 
 

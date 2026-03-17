@@ -2,7 +2,20 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.1.3] - 2026-03-17
+## [1.2.0] - 2026-03-17
+
+### Changed
+- **Food wheel layout** (#97): chart (doughnut + stats) now renders above the location plan tabs
+- **Sorting on all lists** (#95): added `data-enhanced-table` to unidose-plan table and food-wheel stats/plan-items tables; all lists now support column sorting and filtering via table-enhance.js
+- **Item list enhancements** (#96):
+  - Every item name is now a link to its product detail page across all list views (renewals, shopping list, unidose plan; was already present on homepage and stock views)
+  - Hover over any item name → Bootstrap popover shows product image (if available) and name
+  - Nutriscore badges now show a tooltip with full label on hover (e.g. "Nutri-score A")
+  - New food group icon (12 px coloured circle) next to each item — hover shows group name
+  - Food group data injected globally via `_render()` (`food_groups_map`); shopping list rows enriched with `image_url`
+  - Overall and validity stock-view queries extended with `food_group` column
+
+
 
 ### Fixed
 - **Item edit "Save changes" does nothing (#93)**: nested `<form>` (image upload) inside the main form caused the browser to implicitly close the outer form at its `</form>` tag, leaving the Save button outside any form. Fixed by replacing the inner form with a `<div>` and adding `formaction`/`formmethod`/`formenctype` attributes directly on the Upload button so it submits to the correct endpoint while remaining part of the outer form.
