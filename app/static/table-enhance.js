@@ -71,6 +71,12 @@
       });
       controls.appendChild(searchInput);
       controls.appendChild(pageSizeSelect);
+      const printBtn = document.createElement("button");
+      printBtn.type = "button";
+      printBtn.className = "btn btn-outline-secondary btn-sm d-print-none ms-auto";
+      printBtn.title = "Print / PDF";
+      printBtn.innerHTML = '<i class="bi bi-printer" aria-hidden="true"></i> Print';
+      controls.appendChild(printBtn);
       insertParent.insertBefore(controls, insertTarget);
 
       const filterRow = document.createElement("tr");
@@ -217,6 +223,17 @@
         state.page += 1;
         render();
       });
+
+      // Before any print (Ctrl+P, browser menu, or the Print button below),
+      // expand tbody to show ALL currently-filtered rows so headers repeat on
+      // every page and no rows are lost to pagination.
+      window.addEventListener("beforeprint", () => {
+        tbody.replaceChildren(...applyFiltersAndSort());
+      });
+      window.addEventListener("afterprint", () => {
+        render();
+      });
+      printBtn.addEventListener("click", () => window.print());
 
       render();
     } catch (err) {

@@ -2,9 +2,6 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
   <h1 class="h4 mb-0">{{ t("renewal.title") }}</h1>
-  <button class="btn btn-sm btn-outline-secondary d-print-none" onclick="window.print()">
-    <i class="bi bi-printer"></i> {{ t("renewal.print") }}
-  </button>
 </div>
 
 <form class="row g-2 mb-3 d-print-none" method="get" action="/renewals">
@@ -65,14 +62,5 @@
   </div>
 </div>
 
-<style>
-@media print {
-  @page { size: A4; margin: 15mm; }
-  .table-enhance-controls, .table-pagination { display: none !important; }
-  .card { border: none !important; }
-  table { font-size: 10pt; }
-  thead { display: table-header-group; }
-}
-</style>
 {% endblock %}
 

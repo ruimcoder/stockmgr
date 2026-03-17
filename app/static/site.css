@@ -77,3 +77,77 @@ table[data-enhanced-table] th.sort-active {
     border-radius: 0.5rem;
   }
 }
+
+/* ─────────────────── Print / Save as PDF ─────────────────── */
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  /* Hide all page chrome and interactive controls */
+  nav,
+  .table-enhance-controls,
+  .table-pagination,
+  .table-filter-row,
+  .d-print-none {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .container,
+  .container-fluid {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .card {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .card-header {
+    background: none !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    padding-left: 0 !important;
+  }
+
+  /* Table formatting */
+  table {
+    font-size: 10pt;
+    width: 100%;
+  }
+
+  /* Repeat header row on every printed page */
+  thead {
+    display: table-header-group;
+  }
+
+  /* Avoid splitting a data row across pages */
+  tbody tr {
+    page-break-inside: avoid;
+  }
+
+  /* Render sort buttons as plain bold text */
+  .sort-btn {
+    color: inherit !important;
+    font-weight: bold;
+    text-decoration: none !important;
+    cursor: default;
+  }
+
+  .sort-icon {
+    display: none;
+  }
+
+  /* Render numeric inputs (unidose plan) as plain values */
+  input[type="number"] {
+    border: none;
+    background: transparent;
+    width: auto;
+    padding: 0;
+  }
+}
