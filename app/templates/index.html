@@ -70,7 +70,7 @@
       <tbody>
       {% for item in items %}
         <tr>
-          <td><a class="text-decoration-none" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}">{{ item.name }}</a>{% if item.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if item.nutriscore in ['a','b'] %}success{% elif item.nutriscore == 'c' %}warning{% elif item.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">{{ item.nutriscore | upper }}</span>{% endif %}</td>
+          <td><a class="text-decoration-none item-link" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}" data-product-name="{{ item.name }}" data-product-image="{{ item.image_url or '' }}">{{ item.name }}</a>{% if item.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if item.nutriscore in ['a','b'] %}success{% elif item.nutriscore == 'c' %}warning{% elif item.nutriscore == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ item.nutriscore | upper }}">{{ item.nutriscore | upper }}</span>{% endif %}{% if item.food_group and food_groups_map.get(item.food_group) %}{% set fg = food_groups_map[item.food_group] %} <span class="d-inline-block rounded-circle border border-white" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}</td>
           <td>{{ item.item_type }}</td>
           <td>{{ item.barcode or "-" }}</td>
           <td>{{ item.batch_code or "-" }}</td>

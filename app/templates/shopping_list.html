@@ -16,7 +16,10 @@
       <tbody>
         {% for row in rows %}
         <tr>
-          <td>{{ row.name }}</td>
+          <td>
+            <a class="text-decoration-none item-link" href="/products/by-name/{{ row.item_type | urlencode_path }}/{{ row.name | urlencode_path }}" data-product-name="{{ row.name }}" data-product-image="{{ row.image_url or '' }}">{{ row.name }}</a>
+            {% if row.food_group and food_groups_map.get(row.food_group) %}{% set fg = food_groups_map[row.food_group] %}<span class="d-inline-block rounded-circle border border-white ms-1" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}
+          </td>
           <td>{{ row.item_type }}</td>
           <td>{{ row.total_quantity_to_buy }}</td>
           <td>{{ ", ".join(row.distribution) if row.distribution else "-" }}</td>

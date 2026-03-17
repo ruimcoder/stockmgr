@@ -35,7 +35,7 @@
         <tbody>
           {% for row in overall_rows %}
           <tr>
-            <td><a class="text-decoration-none" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}">{{ row[0] }}</a>{% if row[3] %} <span class="badge ms-1" style="background:var(--bs-{% if row[3] in ['a','b'] %}success{% elif row[3] == 'c' %}warning{% elif row[3] == 'd' %}danger{% else %}secondary{% endif %});">{{ row[3] | upper }}</span>{% endif %}</td>
+            <td><a class="text-decoration-none item-link" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}" data-product-name="{{ row[0] }}" data-product-image="">{{ row[0] }}</a>{% if row[3] %} <span class="badge ms-1" style="background:var(--bs-{% if row[3] in ['a','b'] %}success{% elif row[3] == 'c' %}warning{% elif row[3] == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ row[3] | upper }}">{{ row[3] | upper }}</span>{% endif %}{% if row[4] and food_groups_map.get(row[4]) %}{% set fg = food_groups_map[row[4]] %} <span class="d-inline-block rounded-circle border border-white" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}</td>
             <td>{{ row[1] }}</td>
             <td>{{ row[2] }}</td>
           </tr>
@@ -66,7 +66,7 @@
         <tbody>
           {% for row in location_rows %}
           <tr>
-            <td><a class="text-decoration-none" href="/products/by-name/{{ row.item_type | urlencode_path }}/{{ row.name | urlencode_path }}">{{ row.name }}</a>{% if row.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if row.nutriscore in ['a','b'] %}success{% elif row.nutriscore == 'c' %}warning{% elif row.nutriscore == 'd' %}danger{% else %}secondary{% endif %});">{{ row.nutriscore | upper }}</span>{% endif %}</td>
+            <td><a class="text-decoration-none item-link" href="/products/by-name/{{ row.item_type | urlencode_path }}/{{ row.name | urlencode_path }}" data-product-name="{{ row.name }}" data-product-image="">{{ row.name }}</a>{% if row.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if row.nutriscore in ['a','b'] %}success{% elif row.nutriscore == 'c' %}warning{% elif row.nutriscore == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ row.nutriscore | upper }}">{{ row.nutriscore | upper }}</span>{% endif %}{% if row.food_group and food_groups_map.get(row.food_group) %}{% set fg = food_groups_map[row.food_group] %} <span class="d-inline-block rounded-circle border border-white" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}</td>
             <td>{{ row.item_type }}</td>
             <td>{{ row.location }}</td>
             <td>{{ row.quantity }}</td>
@@ -100,7 +100,7 @@
         <tbody>
           {% for row in validity_rows %}
           <tr>
-            <td><a class="text-decoration-none" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}">{{ row[0] }}</a>{% if row[6] %} <span class="badge ms-1" style="background:var(--bs-{% if row[6] in ['a','b'] %}success{% elif row[6] == 'c' %}warning{% elif row[6] == 'd' %}danger{% else %}secondary{% endif %});">{{ row[6] | upper }}</span>{% endif %}</td>
+            <td><a class="text-decoration-none item-link" href="/products/by-name/{{ row[1] | urlencode_path }}/{{ row[0] | urlencode_path }}" data-product-name="{{ row[0] }}" data-product-image="">{{ row[0] }}</a>{% if row[6] %} <span class="badge ms-1" style="background:var(--bs-{% if row[6] in ['a','b'] %}success{% elif row[6] == 'c' %}warning{% elif row[6] == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ row[6] | upper }}">{{ row[6] | upper }}</span>{% endif %}{% if row[7] and food_groups_map.get(row[7]) %}{% set fg = food_groups_map[row[7]] %} <span class="d-inline-block rounded-circle border border-white" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}</td>
             <td>{{ row[1] }}</td>
             <td>{{ row[2] }}</td>
             <td>{{ row[3] | datefmt }}</td>

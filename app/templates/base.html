@@ -116,6 +116,24 @@
       });
     })();
     </script>
+    <script>
+    // Bootstrap tooltips + product hover-card popovers
+    document.addEventListener("DOMContentLoaded", function() {
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el);
+      });
+      function escHtml(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      }
+      document.querySelectorAll(".item-link[data-product-name]").forEach(function(el) {
+        const name = el.dataset.productName || "";
+        const img  = el.dataset.productImage || "";
+        const html = (img ? '<img src="' + escHtml(img) + '" style="max-width:80px;max-height:60px;object-fit:contain;display:block;" onerror="this.style.display=\'none\'">' : "")
+                   + '<div class="small mt-1">' + escHtml(name) + "</div>";
+        new bootstrap.Popover(el, {trigger:"hover focus", placement:"right", html:true, content:html, sanitize:false});
+      });
+    });
+    </script>
   </body>
 </html>
 
