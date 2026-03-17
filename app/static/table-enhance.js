@@ -4,6 +4,27 @@
     return;
   }
 
+  // Inject hover/cursor styles for sort buttons once per page
+  if (!document.getElementById("table-enhance-style")) {
+    const style = document.createElement("style");
+    style.id = "table-enhance-style";
+    style.textContent = [
+      "table[data-enhanced-table] .sort-btn{",
+        "text-decoration:none;vertical-align:baseline;",
+        "padding:0;border:none;background:none;",
+      "}",
+      "table[data-enhanced-table] .sort-btn:hover,",
+      "table[data-enhanced-table] .sort-btn:focus{",
+        "text-decoration:underline;outline:none;",
+      "}",
+      "table[data-enhanced-table] th{transition:background-color .1s;}",
+      "table[data-enhanced-table] th:has(.sort-btn):hover{",
+        "background-color:rgba(var(--bs-primary-rgb),.08);cursor:pointer;",
+      "}",
+    ].join("");
+    document.head.appendChild(style);
+  }
+
   const parseSortableValue = (text) => {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -145,6 +166,23 @@
       return filtered;
     };
 
+    const updateSortIndicators = () => {
+      Array.from(headerRow.cells).forEach((th, index) => {
+        if (!sortable[index]) return;
+        const s = th.querySelector(".sort-icon");
+        if (!s) return;
+        if (state.sortIndex === index) {
+          s.textContent = state.sortDir === 1 ? " ↑" : " ↓";
+          s.classList.remove("text-muted");
+          s.classList.add("text-primary");
+        } else {
+          s.textContent = " ⇅";
+          s.classList.remove("text-primary");
+          s.classList.add("text-muted");
+        }
+      });
+    };
+
     const render = () => {
       const filtered = applyFiltersAndSort();
       const totalPages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
@@ -162,12 +200,23 @@
       updateSortIndicators();
     };
 
+    // Replace each sortable header's text with a <button> for reliable clicking + link appearance
     Array.from(headerRow.cells).forEach((th, index) => {
       if (!sortable[index]) {
         return;
       }
-      th.style.cursor = "pointer";
-      th.addEventListener("click", () => {
+      const label = th.textContent.trim();
+      th.textContent = "";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sort-btn btn btn-link fw-semibold text-nowrap";
+      btn.textContent = label;
+      const icon = document.createElement("span");
+      icon.className = "sort-icon ms-1 text-muted";
+      icon.textContent = " ⇅";
+      btn.appendChild(icon);
+      th.appendChild(btn);
+      btn.addEventListener("click", () => {
         if (state.sortIndex === index) {
           state.sortDir = state.sortDir * -1;
         } else {
@@ -177,28 +226,6 @@
         render();
       });
     });
-
-    const updateSortIndicators = () => {
-      Array.from(headerRow.cells).forEach((th, index) => {
-        const icon = th.querySelector(".sort-icon");
-        if (!sortable[index]) return;
-        if (!icon) {
-          const span = document.createElement("span");
-          span.className = "sort-icon ms-1 text-muted";
-          th.appendChild(span);
-        }
-        const s = th.querySelector(".sort-icon");
-        if (state.sortIndex === index) {
-          s.textContent = state.sortDir === 1 ? " ↑" : " ↓";
-          s.classList.remove("text-muted");
-          s.classList.add("text-primary");
-        } else {
-          s.textContent = " ⇅";
-          s.classList.remove("text-primary");
-          s.classList.add("text-muted");
-        }
-      });
-    };
 
     searchInput.addEventListener("input", () => {
       state.globalFilter = searchInput.value;
@@ -220,7 +247,6 @@
     });
 
     render();
-    updateSortIndicators();
   });
 })();
 
