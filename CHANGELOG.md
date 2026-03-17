@@ -2,6 +2,12 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-03-17
+
+### Fixed
+- **Table column sorting non-functional (#95)**: sort click handlers were registered on `<th>` elements but produced no response in many browsers due to event-capture interference and lack of visible affordance. Fixed by replacing each sortable header's text with an explicit `<button class="sort-btn btn btn-link">` element — guarantees a reliable, browser-native click target.
+- **Sort header hover feedback**: column headers now highlight with a light primary tint on hover, giving users a clear visual cue that headers are interactive.
+
 ## [1.2.0] - 2026-03-17
 
 ### Changed
