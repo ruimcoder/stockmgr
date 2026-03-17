@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "StockMgr",
+    "slug": "stockmgr",
+    "version": "1.0.0",
+    "scheme": "stockmgr",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ruimelo.stockmgr",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan product barcodes when adding items to inventory.",
+        "NSPhotoLibraryUsageDescription": "Used to select a product image from your photo library."
+      }
+    },
+    "android": {
+      "package": "com.ruimelo.stockmgr",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d6efd"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Used to scan product barcodes when adding items to inventory."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    }
+  }
+}
