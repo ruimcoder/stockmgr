@@ -2,6 +2,16 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] - 2026-03-17
+
+### Fixed
+- **Table column sorting still non-functional (#95)**: root-cause diagnosis revealed two issues: (1) browser was serving a stale cached `table-enhance.js` because the URL lacked a cache-busting parameter; (2) the dynamic `<style>` injection at script start was throwing before any tables were enhanced. Fixes:
+  - Sort styles moved to `site.css` (always loaded, no runtime injection)
+  - `site.css`, `table-enhance.js`, and `pwa-register.js` URLs now include `?v={{ app_version_semantic }}` for automatic cache-busting on every release
+  - Controls and pagination now inserted outside `.table-responsive` wrapper (avoids clipping by overflow container)
+  - Sort click handling switched to a single delegated listener on `<thead>` using `data-sort-col` stamps — more robust than per-button handlers
+  - Each table's forEach wrapped in `try/catch` so one failing table can't prevent others from being enhanced
+
 ## [1.2.1] - 2026-03-17
 
 ### Fixed
