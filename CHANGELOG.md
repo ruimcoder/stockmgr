@@ -2,6 +2,12 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] - 2026-03-17
+
+### Fixed
+- **Mixed content blocking all static assets (#103, #95)**: `url_for('static', path=...)` in Jinja2 was generating absolute `http://` URLs. Because the app runs behind Azure's HTTPS reverse proxy without `ProxyHeadersMiddleware`, FastAPI saw every request as HTTP and built HTTP static-file URLs. Browsers block `http://` scripts and stylesheets loaded from an `https://` page as mixed content — silently, in the background. This prevented `table-enhance.js` (and `site.css`) from ever loading, which is why column sorting never worked regardless of the JavaScript fixes applied in v1.2.1 and v1.2.2.
+  - **Fix**: replaced all `url_for('static', path='...')` calls in `base.html` and `device_check.html` with root-relative `/static/...` paths. A root-relative path inherits the page scheme, so it is always `https://` in production and works correctly in local HTTP development too.
+
 ## [1.2.2] - 2026-03-17
 
 ### Fixed
