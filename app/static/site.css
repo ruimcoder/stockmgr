@@ -37,6 +37,36 @@ table th {
   min-width: 100px;
 }
 
+/* Sortable column header buttons */
+table[data-enhanced-table] .sort-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: 600;
+  font-size: inherit;
+  color: var(--bs-link-color, #0d6efd);
+  cursor: pointer;
+  text-decoration: none;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+table[data-enhanced-table] .sort-btn:hover,
+table[data-enhanced-table] .sort-btn:focus {
+  text-decoration: underline;
+  color: var(--bs-link-hover-color, #0a58ca);
+  outline: none;
+}
+table[data-enhanced-table] th:has(.sort-btn) {
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+table[data-enhanced-table] th:has(.sort-btn):hover {
+  background-color: rgba(13, 110, 253, 0.08);
+}
+table[data-enhanced-table] th.sort-active {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
 @media (max-width: 991.98px) {
   .navbar .btn-group-sm > .btn,
   .navbar .btn-sm {
