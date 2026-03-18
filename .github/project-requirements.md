@@ -134,7 +134,8 @@ The application must ship with this default provider order:
 - ✅ Hover card (Bootstrap popover) with product image + name on item links
 - ✅ Nutriscore tooltip and food group colour dot on all list views
 - ✅ Static assets served via root-relative paths — no mixed-content blocking on HTTPS
-- ✅ REST JSON API for mobile/integration use (`/api/items`, `/api/barcode-lookup`, `/api/excel/stocks`)
+- ✅ Server-side PDF export on all list tables (`POST /api/pdf/table`): A4, filter summary, repeated column headers on every page, alternating row shading, page number + date footer, portrait (≤6 cols) / landscape (>6 cols) auto-select
+- ✅ REST JSON API for mobile/integration use (`/api/items`, `/api/barcode-lookup`, `/api/excel/stocks`, `/api/pdf/table`)
 - ✅ Telegram operations channel with command-driven inventory queries and push notifications
 
 ### Web application — pending / open refinement
@@ -173,6 +174,20 @@ The first version targets the highest-value mobile-native features:
 | #113 | Mobile | Item detail screen (view + delete) |
 | #114 | Mobile | Barcode scanner screen (Expo Camera → lookup → form) |
 | #115 | Mobile | Add / Edit item form (create + update) |
+
+### Available API endpoints (for mobile API client, issue #109)
+
+These are implemented and ready for the mobile app to consume:
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /api/items` | Session cookie | List all stock items (JSON) |
+| `POST /api/items` | Session cookie | Create a new stock item |
+| `POST /api/barcode-lookup` | Session cookie | Look up product data by barcode |
+| `GET /api/excel/stocks` | API key | List stocks (Excel integration) |
+| `POST /api/pdf/table` | Session cookie | Generate A4 PDF for any table (title, filters, columns, rows) |
+
+Note: `GET/PUT/DELETE /api/items/{id}` still needed (issue #106).
 
 ### Dependency order
 `#108` → `#109`, `#110` → `#107`, `#111` → `#112` → `#113`, `#114`, `#115`  

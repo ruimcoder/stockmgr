@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jsonschema import ValidationError as JsonSchemaValidationError
 from jsonschema import validate as jsonschema_validate
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import func
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -33,6 +33,7 @@ from app.db import get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import LocationPlan, StockItem, StockMovement, User
+from app.pdf_utils import generate_table_pdf
 from app.schemas import (
     BarcodeLookupRequest,
     BarcodeLookupResult,
@@ -3149,6 +3150,36 @@ async def api_barcode_lookup(
 ):
     _ = user
     return await barcode_service.lookup(payload.barcode, payload.item_type)
+
+
+class _TablePDFRequest(BaseModel):
+    title: str = "Export"
+    filters: dict[str, str] = {}
+    columns: list[str]
+    rows: list[list[str]]
+
+
+@app.post("/api/pdf/table")
+async def api_pdf_table(
+    payload: _TablePDFRequest,
+    user: User = Depends(_require_api_user),
+):
+    """Generate and return an A4 PDF for a client-side filtered table."""
+    _ = user
+    import re as _re
+
+    pdf_bytes = generate_table_pdf(
+        title=payload.title,
+        filters=payload.filters,
+        columns=payload.columns,
+        rows=payload.rows,
+    )
+    safe_name = _re.sub(r"[^a-z0-9_-]", "_", payload.title.lower())[:50] or "export"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.pdf"'},
+    )
 
 
 @app.post("/api/telegram/webhook")
