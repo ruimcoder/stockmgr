@@ -2,6 +2,22 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.5] - 2026-03-18
+
+### Added
+- **Server-side PDF export on all list tables (#117)**: replaced the browser-print button with a **PDF** button on every `data-enhanced-table` table. Clicking it sends the currently-filtered, sorted rows to the new `POST /api/pdf/table` endpoint which generates an A4 PDF using `fpdf2` and pushes it as a download. The PDF includes:
+  - A one-line filter summary (active search and column filters, shown on every page)
+  - Column headers repeated on every page via `FPDF.header()`
+  - Alternating row shading for readability
+  - Page number and generation timestamp in the footer
+  - Auto-selection of portrait (≤6 columns) or landscape (>6 columns) orientation
+- **`POST /api/pdf/table` API endpoint**: session-authenticated JSON endpoint accepting `{title, filters, columns, rows}`, returning `application/pdf` with `Content-Disposition: attachment`. No CSRF required (read-only, session auth sufficient).
+- **`fpdf2`** added to `requirements.txt`.
+
+### Changed
+- `table-enhance.js`: column label text is now stamped as `data-col-label` on each `<th>` before sort buttons replace the text content — used both for PDF column headers and for filter summaries.
+- `beforeprint`/`afterprint` handlers retained so Ctrl+P / browser print still expands all filtered rows correctly.
+
 ## [1.2.4] - 2026-03-17
 
 ### Added

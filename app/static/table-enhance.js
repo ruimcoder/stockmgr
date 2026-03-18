@@ -74,8 +74,8 @@
       const printBtn = document.createElement("button");
       printBtn.type = "button";
       printBtn.className = "btn btn-outline-secondary btn-sm d-print-none ms-auto";
-      printBtn.title = "Print / PDF";
-      printBtn.innerHTML = '<i class="bi bi-printer" aria-hidden="true"></i> Print';
+      printBtn.title = "Download PDF of filtered results";
+      printBtn.innerHTML = '<i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF';
       controls.appendChild(printBtn);
       insertParent.insertBefore(controls, insertTarget);
 
@@ -114,6 +114,11 @@
       pagination.appendChild(nextButton);
       pagination.appendChild(pageInfo);
       insertParent.insertBefore(pagination, insertTarget.nextSibling);
+
+      // Stamp original column label on each <th> before sort buttons replace the text
+      Array.from(headerRow.cells).forEach((th) => {
+        th.dataset.colLabel = th.textContent.trim();
+      });
 
       // Stamp each sortable header with its column index for delegated click handling
       Array.from(headerRow.cells).forEach((th, index) => {
@@ -224,16 +229,68 @@
         render();
       });
 
-      // Before any print (Ctrl+P, browser menu, or the Print button below),
-      // expand tbody to show ALL currently-filtered rows so headers repeat on
-      // every page and no rows are lost to pagination.
+      // Before any print (Ctrl+P, browser menu), expand tbody to ALL filtered rows
+      // so headers repeat on every page and pagination is bypassed.
       window.addEventListener("beforeprint", () => {
         tbody.replaceChildren(...applyFiltersAndSort());
       });
       window.addEventListener("afterprint", () => {
         render();
       });
-      printBtn.addEventListener("click", () => window.print());
+
+      // PDF button — generates a server-side A4 PDF with filter summary,
+      // repeated column headers, alternating row shading, and page footer.
+      printBtn.addEventListener("click", async () => {
+        const allFiltered = applyFiltersAndSort();
+        const columns = Array.from(headerRow.cells).map(
+          (th) => th.dataset.colLabel || th.textContent.replace(/[\u21C5\u2191\u2193]/g, "").trim()
+        );
+        const rows = allFiltered.map((row) =>
+          Array.from(row.cells).map((cell) => cell.textContent.trim())
+        );
+        const filters = {};
+        if (state.globalFilter) filters["Search"] = state.globalFilter;
+        state.columnFilters.forEach((v, i) => {
+          if (v) {
+            const label = headerRow.cells[i]?.dataset.colLabel || "Col" + (i + 1);
+            filters[label] = v;
+          }
+        });
+        const title =
+          table.dataset.pdfTitle ||
+          document.querySelector("main h1, main h2")?.textContent?.trim() ||
+          document.title;
+
+        printBtn.disabled = true;
+        printBtn.innerHTML =
+          '<i class="bi bi-hourglass-split" aria-hidden="true"></i> Generating\u2026';
+        try {
+          const resp = await fetch("/api/pdf/table", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, columns, rows, filters }),
+          });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download =
+            (title || "export").replace(/[^a-z0-9]/gi, "_").slice(0, 60) + ".pdf";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("[table-enhance] PDF error:", err);
+          alert("PDF generation failed. Please try again.");
+        } finally {
+          printBtn.disabled = false;
+          printBtn.innerHTML =
+            '<i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF';
+        }
+      });
 
       render();
     } catch (err) {
