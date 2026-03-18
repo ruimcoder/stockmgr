@@ -31,13 +31,13 @@ Build a web application to manage SHTF stock items, including shelf-life trackin
    - CSV import
 6. Support a secure Telegram operations channel for owner communication:
    - Accept Telegram inputs only from the configured owner identity.
-   - Validate webhook origin using a shared secret token.
-   - Send operation outputs/status summaries back through Telegram.
+   - Run integration as a standalone bridge process (outside FastAPI app runtime).
+   - Send command outputs/status summaries back through Telegram.
 
 ## Configuration requirements
 - Calendar provider must be selected through application configuration.
 - Barcode product data source must be configurable to support future provider changes.
-- Telegram access control (allowed user/chat IDs and webhook secret) must be configurable.
+- Telegram access control (allowed user/chat IDs) must be configurable.
 - Provider configuration contract must be defined by `config/barcode-providers.schema.json`.
 - Default provider runtime settings must live in `config/barcode-providers.default.json`.
 
@@ -117,7 +117,7 @@ The application must ship with this default provider order:
 - ✅ Manual item entry, data-grid view/edit, datagrid column sorting/filtering/paging
 - ✅ Excel and CSV import; XLSX export
 - ✅ Calendar sync abstraction (Google/Microsoft provider modes)
-- ✅ Secure Telegram operations channel with webhook secret + allowed user/chat ID validation
+- ✅ Secure Telegram operations channel using standalone bridge process with allowed user/chat validation
 - ✅ Mobile-first responsive UI with PWA support
 - ✅ Portuguese and English UI
 - ✅ User registration with admin approval workflow
@@ -136,7 +136,7 @@ The application must ship with this default provider order:
 - ✅ Static assets served via root-relative paths — no mixed-content blocking on HTTPS
 - ✅ Server-side PDF export on all list tables (`POST /api/pdf/table`): A4, filter summary, repeated column headers on every page, alternating row shading, page number + date footer, portrait (≤6 cols) / landscape (>6 cols) auto-select
 - ✅ REST JSON API for mobile/integration use (`/api/items`, `/api/barcode-lookup`, `/api/excel/stocks`, `/api/pdf/table`)
-- ✅ Telegram operations channel with command-driven inventory queries and push notifications
+- ✅ Telegram operations channel with command-driven Copilot CLI chat bridge
 
 ### Web application — pending / open refinement
 - ⏳ Provider health scoring, timeout, and retry policy for fallback chain

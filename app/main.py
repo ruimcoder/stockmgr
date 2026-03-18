@@ -42,17 +42,10 @@ from app.schemas import (
     ItemCreate,
     ItemRead,
     LocationPlanCreate,
-    TelegramUpdate,
 )
 from app.services.barcode import BarcodeLookupService
 from app.services.calendar import CalendarSyncError, CalendarSyncService
 from app.services.imports import parse_import_file
-from app.services.telegram import (
-    TelegramConfigError,
-    TelegramDeliveryError,
-    TelegramSecurityError,
-    TelegramService,
-)
 from app.version import APP_VERSION as _APP_VERSION, BUILD_DATE as _BUILD_DATE
 
 settings = get_settings()
@@ -163,7 +156,6 @@ if settings.microsoft_client_id and settings.microsoft_client_secret:
 
 barcode_service = BarcodeLookupService(settings)
 calendar_service = CalendarSyncService(settings)
-telegram_service = TelegramService(settings)
 
 
 def _current_language(request: Request) -> str:
@@ -552,29 +544,21 @@ def _telegram_operation_message(*, operation: str, actor: str, detail: str) -> s
 
 
 def _notify_telegram_operation_sync(*, operation: str, actor: str, detail: str) -> None:
-    if not telegram_service.is_enabled:
-        return
-    try:
-        telegram_service.send_message_sync(
-            text=_telegram_operation_message(operation=operation, actor=actor, detail=detail)
-        )
-    except TelegramDeliveryError as exc:
-        logger.warning("Telegram operation notification failed: %s", exc)
-    except TelegramConfigError as exc:
-        logger.warning("Telegram notification skipped due to configuration error: %s", exc)
+    logger.info(
+        "Telegram app-level notifications are disabled; operation=%s actor=%s detail=%s",
+        operation,
+        actor,
+        detail,
+    )
 
 
 async def _notify_telegram_operation_async(*, operation: str, actor: str, detail: str) -> None:
-    if not telegram_service.is_enabled:
-        return
-    try:
-        await telegram_service.send_message(
-            text=_telegram_operation_message(operation=operation, actor=actor, detail=detail)
-        )
-    except TelegramDeliveryError as exc:
-        logger.warning("Telegram operation notification failed: %s", exc)
-    except TelegramConfigError as exc:
-        logger.warning("Telegram notification skipped due to configuration error: %s", exc)
+    logger.info(
+        "Telegram app-level notifications are disabled; operation=%s actor=%s detail=%s",
+        operation,
+        actor,
+        detail,
+    )
 
 
 def _telegram_help_message() -> str:
@@ -584,7 +568,8 @@ def _telegram_help_message() -> str:
         "/health - app health and deployed version\n"
         "/inventory - shared inventory summary\n"
         "/find <name> - search products by name\n"
-        "/moves [N] - latest stock movements (default 5)"
+        "/moves [N] - latest stock movements (default 5)\n"
+        "You can also send plain text like: inventory, health, moves 10, find rice, or just 'rice'."
     )
 
 
@@ -665,14 +650,46 @@ def _telegram_recent_moves(session: Session, requested_limit: str) -> str:
     return "\n".join(lines)
 
 
-def _handle_telegram_command(session: Session, text: str) -> str:
-    command_line = text.strip()
-    if not command_line.startswith("/"):
-        return "Unknown input. Send /help to list supported commands."
+def _parse_telegram_input(text: str) -> tuple[str, str]:
+    normalized = " ".join(text.strip().split())
+    if not normalized:
+        return "", ""
 
-    parts = command_line.split(maxsplit=1)
-    command = parts[0].lower()
-    argument = parts[1] if len(parts) > 1 else ""
+    if normalized.startswith("/"):
+        parts = normalized.split(maxsplit=1)
+        command = parts[0].lower().split("@", 1)[0]
+        argument = parts[1] if len(parts) > 1 else ""
+        return command, argument
+
+    lowered = normalized.lower()
+    if lowered in {"help", "commands", "menu", "start"}:
+        return "/help", ""
+    if lowered in {"health", "status", "ping"}:
+        return "/health", ""
+    if lowered in {"inventory", "stock", "inventory summary", "stock summary", "summary"}:
+        return "/inventory", ""
+    if lowered.startswith("find "):
+        return "/find", normalized.split(maxsplit=1)[1]
+    if lowered.startswith("search "):
+        return "/find", normalized.split(maxsplit=1)[1]
+    if lowered.startswith("lookup "):
+        return "/find", normalized.split(maxsplit=1)[1]
+    if lowered in {"moves", "recent moves", "latest moves", "movements"}:
+        return "/moves", ""
+    if lowered.startswith("moves "):
+        return "/moves", normalized.split(maxsplit=1)[1]
+    if lowered.startswith("recent moves "):
+        return "/moves", normalized.split(maxsplit=2)[2]
+    if lowered.startswith("latest moves "):
+        return "/moves", normalized.split(maxsplit=2)[2]
+
+    return "/find", normalized
+
+
+def _handle_telegram_command(session: Session, text: str) -> str:
+    command, argument = _parse_telegram_input(text)
+    if not command:
+        return "Unknown input. Send /help to list supported commands."
 
     if command in {"/start", "/help"}:
         return _telegram_help_message()
@@ -3183,42 +3200,14 @@ async def api_pdf_table(
 
 
 @app.post("/api/telegram/webhook")
-async def telegram_webhook(request: Request, session: Session = Depends(get_session)):
-    if not telegram_service.is_enabled:
-        raise HTTPException(status_code=503, detail="Telegram integration is not configured.")
-
-    secret_token = request.headers.get("x-telegram-bot-api-secret-token")
-    payload = await request.json()
-    try:
-        update = TelegramUpdate.model_validate(payload)
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.errors()) from exc
-
-    message = update.message or update.edited_message
-    if not message or not message.text:
-        return {"ok": True, "ignored": "unsupported-update"}
-
-    try:
-        incoming = telegram_service.parse_incoming(
-            text=message.text,
-            user_id=message.from_user.id,
-            chat_id=message.chat.id,
-            chat_type=message.chat.type,
-            provided_secret=secret_token,
-        )
-    except TelegramConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except TelegramSecurityError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-
-    command_output = _handle_telegram_command(session, incoming.text)
-    try:
-        await telegram_service.send_message(text=command_output, chat_id=incoming.chat_id)
-    except TelegramConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except TelegramDeliveryError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"ok": True}
+async def telegram_webhook():
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Telegram webhook integration moved out of FastAPI. "
+            "Run scripts/telegram_copilot_bridge.py for Telegram <-> Copilot CLI chat."
+        ),
+    )
 
 
 @app.exception_handler(HTTPException)
