@@ -2,6 +2,30 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.7] - 2026-03-18
+
+### Changed
+- **Telegram integration moved out of FastAPI into a standalone CLI bridge**:
+  - Added `scripts/telegram_copilot_bridge.py` for Telegram <-> Copilot CLI conversations via long polling.
+  - Bridge keeps per-chat short history for fluent back-and-forth, supports `/help` and `/reset`, and can restrict access with `TELEGRAM_ALLOWED_USER_ID` and `TELEGRAM_ALLOWED_CHAT_ID`.
+  - App endpoint `POST /api/telegram/webhook` is now deprecated and returns `410 Gone` with migration guidance.
+  - App-level Telegram operation notifications are disabled; Telegram interaction is now handled by the standalone bridge process.
+
+### Tests
+- Replaced app-webhook Telegram tests with coverage for the new deprecated endpoint behavior and stock-move stability without app-level Telegram wiring.
+
+## [1.2.6] - 2026-03-18
+
+### Changed
+- **Telegram command handling is now fluent for two-way bot chats**:
+  - Supports Telegram command mentions such as `/health@your_bot` (common in group and forwarded command contexts).
+  - Supports natural-language aliases without slash commands (`inventory`, `health`, `moves 10`, `find rice`).
+  - Treats unmatched free text as product search input (e.g., sending `rice` runs the equivalent of `/find rice`).
+  - Help output now documents free-text usage examples.
+
+### Tests
+- Added coverage for command-mention parsing and free-text Telegram query handling in `tests/test_telegram.py`.
+
 ## [1.2.5] - 2026-03-18
 
 ### Added
