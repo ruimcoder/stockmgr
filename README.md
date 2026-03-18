@@ -1,6 +1,6 @@
 # stockmgr
 
-![Version](https://img.shields.io/badge/version-1.2.3-blue)
+![Version](https://img.shields.io/badge/version-1.2.4-blue)
 
 Web MVP to manage SHTF stock inventorywith OAuth-capable authentication, barcode-assisted item entry, CSV/XLSX import, renewal-date calendar sync, and configurable product-information providers.
 
@@ -39,11 +39,13 @@ Web MVP to manage SHTF stock inventorywith OAuth-capable authentication, barcode
 - Application info page (`/admin/info`) shows semantic version, build date, deploy SHA, and database stats.
 
 ## Project structure
-- App code: `app/`
-- Provider config schema: `config/barcode-providers.schema.json`
-- Default provider config: `config/barcode-providers.default.json`
-- CI workflow: `.github/workflows/ci.yml`
-- Deploy workflow: `.github/workflows/deploy.yml`
+```
+app/       FastAPI web application (Python)
+mobile/    React Native + Expo mobile app (TypeScript) — scaffold pending, see issue #108
+config/    Barcode provider configuration schemas and defaults
+tests/     Pytest test suite for the web app
+.github/   Workflows: ci.yml, deploy.yml, device-smoke.yml, mobile-ci.yml, mobile-release.yml
+```
 
 ## Local setup
 1. Create and activate a virtual environment.
@@ -132,10 +134,17 @@ and is active in the default lookup chain configuration.
 - Supported commands: `/help`, `/health`, `/inventory`, `/find <name>`, `/moves [N]`.
 - Operational outputs: item create/update/delete/move/import and Excel API write flows emit Telegram notifications when integration is enabled.
 
-## Build and deploy
+## Build and deploy — web app
 - **CI** (`ci.yml`): lint + tests + Docker build on push/PR.
 - **Deploy to Azure** (`deploy.yml`): validates Azure infra, builds/pushes image to GHCR, deploys container to Azure Web App, then runs smoke tests.
 - **Device smoke** (`device-smoke.yml`): Playwright smoke tests across Firefox desktop, Android Chrome emulation, and iPhone Safari emulation.
+
+## Build and deploy — mobile app
+- **Mobile CI** (`mobile-ci.yml`): TypeScript type check + `expo-doctor` on push/PR when `mobile/**` changes.
+- **Mobile Release** (`mobile-release.yml`): EAS Build + optional EAS Submit triggered by a `mobile-v*.*.*` tag or `workflow_dispatch`.
+  - Inputs: platform (`all`/`ios`/`android`), profile (`production`/`preview`), submit to stores (`true`/`false`).
+  - On version tag push, auto-submits to both stores.
+- See [`mobile/README.md`](mobile/README.md) for full store setup instructions and required GitHub secrets.
 
 ## Azure deployment pipeline setup
 

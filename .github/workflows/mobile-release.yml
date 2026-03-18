@@ -1,0 +1,123 @@
+name: Mobile Release
+
+# Triggered by a version tag (e.g. mobile-v1.0.0) or manually.
+# Builds the Expo app via EAS Build and optionally submits to stores.
+#
+# Required GitHub secrets:
+#   EXPO_TOKEN                         – Expo account access token (expo.dev → Account Settings → Access Tokens)
+#   EXPO_APPLE_APP_SPECIFIC_PASSWORD   – Apple app-specific password (appleid.apple.com → App-Specific Passwords)
+#   GOOGLE_SERVICE_ACCOUNT_KEY_JSON    – Full JSON content of the Google Play service account key
+
+on:
+  push:
+    tags:
+      - "mobile-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to build"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+      profile:
+        description: "EAS build profile"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - preview
+      submit:
+        description: "Submit to stores after build"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  build:
+    name: EAS Build (${{ github.event.inputs.platform || 'all' }} / ${{ github.event.inputs.profile || 'production' }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: EAS Build
+        run: |
+          PLATFORM="${{ github.event.inputs.platform || 'all' }}"
+          PROFILE="${{ github.event.inputs.profile || 'production' }}"
+          eas build \
+            --platform "$PLATFORM" \
+            --profile "$PROFILE" \
+            --non-interactive
+
+  submit:
+    name: Submit to stores
+    needs: build
+    # Auto-submit on version tag pushes; on manual dispatch only if submit=true
+    if: github.event_name == 'push' || github.event.inputs.submit == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    env:
+      EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.EXPO_APPLE_APP_SPECIFIC_PASSWORD }}
+      GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write Google service account key
+        if: env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON != ''
+        run: echo "$GOOGLE_SERVICE_ACCOUNT_KEY_JSON" > google-service-account.json
+
+      - name: EAS Submit
+        run: |
+          PLATFORM="${{ github.event.inputs.platform || 'all' }}"
+          eas submit \
+            --platform "$PLATFORM" \
+            --profile production \
+            --non-interactive \
+            --latest

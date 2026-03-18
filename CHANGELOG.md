@@ -2,6 +2,12 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.4] - 2026-03-17
+
+### Added
+- **Print to PDF on all list tables**: every table enhanced by `table-enhance.js` now has a **Print** button in its controls bar. Clicking it (or using Ctrl+P / browser print) automatically expands the table to show **all currently-filtered rows** (bypassing pagination) before opening the print dialog, then restores the paginated view after. CSS `@media print` rules in `site.css` hide the navbar, table controls, pagination, and column-filter inputs; set `thead { display: table-header-group }` so headers repeat on every printed page; and format the table for A4 at 10pt. Covered tables: inventory list, renewal plan, shopping list, stock views (3 tables), food wheel plan, location plans, unidose plan, and admin users.
+- **Global `@media print` CSS** in `site.css` replaces the per-template inline print style blocks that were previously duplicated in `renewals.html` and `unidose_plan.html`.
+
 ## [1.2.3] - 2026-03-17
 
 ### Fixed
