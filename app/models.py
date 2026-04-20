@@ -28,7 +28,7 @@ class StockItem(SQLModel, table=True):
     item_type: str = Field(nullable=False)
     storage_location: str = Field(nullable=False)
     storage_bucket: str = Field(default="", nullable=False)
-    expiry_date: date = Field(nullable=False)
+    expiry_date: date | None = Field(default=None)
     quantity: int = Field(default=0, nullable=False)
     unidose_per_pack: int = Field(default=1, nullable=False)
     target_unidoses_location: int = Field(default=0, nullable=False)
