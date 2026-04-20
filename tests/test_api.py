@@ -909,3 +909,54 @@ def test_api_admin_backup_403_for_non_admin(anon_client):
     anon_client.post("/auth/dev-login", data={"email": "regular@example.com"}, follow_redirects=False)
     resp = anon_client.post("/api/admin/backup")
     assert resp.status_code == 403
+
+
+def test_api_items_category_in_response(client):
+    resp_create = client.post(
+        "/api/items",
+        json={
+            "name": "Canned Beans",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "expiry_date": "2030-06-01",
+            "quantity": 2,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 4,
+            "item_category": "food",
+        },
+    )
+    resp = client.get("/api/items")
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) > 0
+    assert "item_category" in items[0]
+    assert "non_food_category" in items[0]
+
+
+def test_api_items_filter_by_category_food(client):
+    client.post("/api/items", json={"name":"Rice","item_type":"food","storage_location":"Pantry","expiry_date":"2030-06-01","quantity":1,"unidose_per_pack":1,"target_unidoses_location":2,"item_category":"food"})
+    client.post("/api/items", json={"name":"Ibuprofen","item_type":"medicine","storage_location":"Cabinet","expiry_date":"2030-06-01","quantity":1,"unidose_per_pack":1,"target_unidoses_location":2,"item_category":"non_food","non_food_category":"medicine"})
+    resp = client.get("/api/items?category=food")
+    assert resp.status_code == 200
+    for item in resp.json():
+        assert item["item_category"] in ("food", None)
+
+
+def test_api_items_filter_by_category_non_food(client):
+    resp = client.get("/api/items?category=non_food")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+def test_api_items_filter_by_non_food_category(client):
+    client.post("/api/items", json={"name":"Paracetamol","item_type":"medicine","storage_location":"Cabinet","expiry_date":"2030-06-01","quantity":1,"unidose_per_pack":1,"target_unidoses_location":2,"item_category":"non_food","non_food_category":"medicine"})
+    resp = client.get("/api/items?non_food_category=medicine")
+    assert resp.status_code == 200
+    for item in resp.json():
+        assert item["non_food_category"] == "medicine"
+
+
+def test_api_items_expiry_null_ok(client):
+    resp = client.get("/api/items")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
