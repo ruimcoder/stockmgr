@@ -2,6 +2,16 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] - 2026-04-20
+### Fixed
+- Food wheel calculations now exclude non-food items (item_category=non_food) (#134)
+- Backward compatible: items without item_category (legacy/NULL) still included as food
+
+## [1.3.3] - 2026-04-20
+### Added
+- GET /api/items now accepts ?category= and ?non_food_category= query params (#135)
+- item_category and non_food_category included in all ItemRead API responses (#135)
+
 ## [1.2.9] - 2026-04-20
 ### Added
 - item_category field on StockItem: "food" (default) | "non_food" (#122)

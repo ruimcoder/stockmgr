@@ -25,7 +25,7 @@ from jsonschema import ValidationError as JsonSchemaValidationError
 from jsonschema import validate as jsonschema_validate
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, or_, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.backup_utils import create_backup, list_backups, restore_backup
@@ -1426,6 +1426,8 @@ def food_wheel_page(
             StockItem.storage_location,
             StockItem.quantity,
             StockItem.unidose_per_pack,
+        ).where(
+            or_(StockItem.item_category == "food", StockItem.item_category == None)  # noqa: E711
         )
         if location:
             query = query.where(StockItem.storage_location == location)
@@ -2240,7 +2242,8 @@ def item_delete(
     )
     return RedirectResponse("/?m=item-deleted", status_code=303)
 
-
+
+
 
 @app.get("/items/export")
 def export_items(request: Request, session: Session = Depends(get_session)):
@@ -2437,7 +2440,8 @@ def admin_toggle_admin(
     session.commit()
     return RedirectResponse("/admin/users?m=user-role-updated", status_code=303)
 
-
+
+
 
 @app.get("/admin/enrich")
 def admin_enrich_page(
@@ -3001,9 +3005,20 @@ def api_list_items(
     request: Request,
     session: Session = Depends(get_session),
     user: User = Depends(_require_api_user),
+    category: str | None = None,
+    non_food_category: str | None = None,
 ):
     _ = request, user
-    items = session.exec(select(StockItem)).all()
+    query = select(StockItem)
+    if category == "food":
+        query = query.where(
+            or_(StockItem.item_category == "food", StockItem.item_category == None)  # noqa: E711
+        )
+    elif category is not None:
+        query = query.where(StockItem.item_category == category)
+    if non_food_category is not None:
+        query = query.where(StockItem.non_food_category == non_food_category)
+    items = session.exec(query).all()
     return [_to_read_model(item) for item in items]
 
 
