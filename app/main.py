@@ -34,6 +34,7 @@ from app.db import _sqlite_path_from_url, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import LocationPlan, StockItem, StockMovement, User
+from app.non_food_categories import ITEM_CATEGORIES, NON_FOOD_CATEGORIES
 from app.pdf_utils import generate_table_pdf
 from app.schemas import (
     BarcodeLookupRequest,
@@ -207,6 +208,8 @@ def _render(
         "app_version_semantic": _APP_VERSION,
         "app_build_date": _BUILD_DATE,
         "food_groups_map": _FOOD_GROUPS_MAP,
+        "non_food_categories": NON_FOOD_CATEGORIES,
+        "item_categories": ITEM_CATEGORIES,
     }
     if context:
         payload.update(context)
