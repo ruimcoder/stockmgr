@@ -2,6 +2,14 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] - 2026-04-21
+### Changed
+- expiry_date is now optional for non-food items (except medicine, seeds, energy) (#123)
+### Added
+- Server-side validation: expiry_date required for food, medicine, seeds, energy
+- Item form JS: dynamically toggles expiry required based on item type
+- i18n keys: form.expiry_optional_hint (EN + PT)
+
 ## [1.3.2] - 2026-04-20
 ### Fixed
 - Food wheel calculations now exclude non-food items (item_category=non_food) (#134)
