@@ -8,6 +8,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from app.schemas import ImportResult, ItemCreate
+from app.uom_constants import normalize_uom
 
 HEADER_MAP = {
     "barcode": "barcode",
@@ -34,6 +35,7 @@ HEADER_MAP = {
     "humidity_min_pct": "humidity_min_pct",
     "humidity_max_pct": "humidity_max_pct",
     "renewal_date": "renewal_date",
+    "uom": "uom",
 }
 
 
@@ -65,6 +67,8 @@ def _normalize_row(raw: dict[str, object]) -> dict[str, object]:
             normalized[canonical] = int(value) if value not in (None, "") else 1
         elif canonical == "target_unidoses_location":
             normalized[canonical] = int(value) if value not in (None, "") else 0
+        elif canonical == "uom":
+            normalized[canonical] = normalize_uom(str(value) if value not in (None, "") else None)
         elif value == "":
             normalized[canonical] = None
         else:
