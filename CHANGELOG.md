@@ -2,6 +2,14 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.5] - 2026-04-21
+### Added
+- Item form: `item_category` radio (Food/Non-food) and `non_food_category` select, shown prominently after barcode section (#125)
+- Category-aware field visibility: food-only fields (nutriscore, food group) hidden for non-food items; non-food category shown only for non-food items (#125)
+- `app/static/item_form.js`: `updateCategoryVisibility()` and `updateExpiryRequired()` functions with DOM-load binding (#125)
+- Inventory list: category emoji badge next to each item name (🌿 food, 💊 medicine, ⛽ energy, 🔧 tools, 🧼 hygiene, 🌱 seeds, 📻 communication, 🛡️ security, 📦 other) (#125)
+- i18n keys: `form.item_category`, `form.non_food_category`, `form.select_category`, `badge.*` (EN + PT) (#125)
+
 ## [1.3.4] - 2026-04-21
 ### Changed
 - UOM field is now a standardized dropdown (L, mL, kg, g, unit, pack, dose, roll, m2, kWh) (#124)

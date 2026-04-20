@@ -79,6 +79,32 @@
           <input class="form-control" name="item_type" value="{{ draft.item_type or 'unknown' }}" required />
         </div>
         <div class="col-md-4">
+          <label class="form-label fw-semibold">{{ t("form.item_category") }}</label>
+          <div class="d-flex gap-3 pt-1">
+            {% for key, labels in item_categories.items() %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="item_category"
+                     id="ic_edit_{{ key }}" value="{{ key }}"
+                     {% if draft.item_category == key or (not draft.item_category and key == 'food') %}checked{% endif %} />
+              <label class="form-check-label" for="ic_edit_{{ key }}">
+                {{ labels[lang] if lang in labels else labels['en'] }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-md-4 non-food-only-field">
+          <label class="form-label">{{ t("form.non_food_category") }}</label>
+          <select class="form-select" name="non_food_category">
+            <option value="">{{ t("form.select_category") }}</option>
+            {% for key, labels in non_food_categories.items() %}
+            <option value="{{ key }}" {% if draft.non_food_category == key %}selected{% endif %}>
+              {{ labels[lang] if lang in labels else labels['en'] }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
           <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
           <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
         </div>
@@ -113,7 +139,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-6 food-only-field">
           <label class="form-label">{{ t("label.food_group") }}</label>
           <select class="form-select" id="food-group-select" name="food_group">
             <option value="">—</option>
@@ -124,7 +150,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-3 food-only-field">
           <label class="form-label">{{ t("label.nutriscore_select") }}</label>
           <select class="form-select" name="nutriscore">
             <option value="" {% if not draft.nutriscore %}selected{% endif %}>—</option>
@@ -320,6 +346,32 @@
       <input class="form-control" name="item_type" value="{{ draft.item_type or 'unknown' }}" required />
     </div>
     <div class="col-md-4">
+      <label class="form-label fw-semibold">{{ t("form.item_category") }}</label>
+      <div class="d-flex gap-3 pt-1">
+        {% for key, labels in item_categories.items() %}
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="item_category"
+                 id="ic_{{ key }}" value="{{ key }}"
+                 {% if draft.item_category == key or (not draft.item_category and key == 'food') %}checked{% endif %} />
+          <label class="form-check-label" for="ic_{{ key }}">
+            {{ labels[lang] if lang in labels else labels['en'] }}
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-4 non-food-only-field">
+      <label class="form-label">{{ t("form.non_food_category") }}</label>
+      <select class="form-select" name="non_food_category">
+        <option value="">{{ t("form.select_category") }}</option>
+        {% for key, labels in non_food_categories.items() %}
+        <option value="{{ key }}" {% if draft.non_food_category == key %}selected{% endif %}>
+          {{ labels[lang] if lang in labels else labels['en'] }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
       <label class="form-label">{{ t("label.unidose_per_pack") }}</label>
       <input class="form-control" name="unidose_per_pack" type="number" min="1" step="1" value="{{ draft.unidose_per_pack or 1 }}" />
     </div>
@@ -354,7 +406,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-6 food-only-field">
       <label class="form-label">{{ t("label.food_group") }}</label>
       <select class="form-select" id="food-group-select" name="food_group">
         <option value="">—</option>
@@ -365,7 +417,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 food-only-field">
       <label class="form-label">{{ t("label.nutriscore_select") }}</label>
       <select class="form-select" name="nutriscore">
         <option value="" {% if not draft.nutriscore %}selected{% endif %}>—</option>
@@ -508,6 +560,7 @@
   </div>
 </div>
 {% endif %}
+<script src="/static/item_form.js"></script>
 <script>
   (() => {
     const plans = {{ location_plans_json | safe }};
@@ -863,29 +916,7 @@
       });
     }
 
-    // Expiry required toggle (#123)
-    function updateExpiryRequired() {
-      var cat = document.querySelector('[name="item_category"]');
-      var nfc = document.querySelector('[name="non_food_category"]');
-      var catVal = cat ? cat.value : "food";
-      var nfcVal = nfc ? nfc.value : "";
-      var needsExpiry = catVal === "food" || ["medicine", "seeds", "energy"].includes(nfcVal);
-      document.querySelectorAll(".expiry-input").forEach(function(inp) {
-        inp.required = needsExpiry;
-      });
-      document.querySelectorAll(".expiry-required-star").forEach(function(star) {
-        star.classList.toggle("d-none", !needsExpiry);
-      });
-      document.querySelectorAll(".expiry-optional-hint").forEach(function(hint) {
-        hint.classList.toggle("d-none", needsExpiry);
-      });
-    }
-    document.addEventListener("DOMContentLoaded", updateExpiryRequired);
-    updateExpiryRequired();
-    ["item_category", "non_food_category"].forEach(function(name) {
-      var el = document.querySelector('[name="' + name + '"]');
-      if (el) el.addEventListener("change", updateExpiryRequired);
-    });
+    // Category visibility and expiry required are handled by /static/item_form.js
   })();
 
   // ── Image URL preview (removed live preview to avoid DOM-based injection) ──
