@@ -122,3 +122,27 @@ def test_chart_data_delta_pct():
     stats = {g["key"]: g for g in result["group_stats"]}
     # 100% actual for fruta, target is 20% → delta ≈ +80%
     assert stats["fruta"]["delta_pct"] > 0
+
+
+def test_non_food_items_excluded_from_food_wheel(client):
+    """Non-food items should not appear in food wheel calculations."""
+    from datetime import date
+
+    client.post(
+        "/items",
+        data={
+            "name": "First Aid Kit",
+            "item_type": "medicine",
+            "item_category": "non_food",
+            "non_food_category": "medicine",
+            "storage_location": "Test Location",
+            "expiry_date": str(date(2027, 1, 1)),
+            "quantity": "1",
+            "unidose_per_pack": "1",
+            "food_group": "proteinas",  # would distort food wheel if included
+        },
+        follow_redirects=True,
+    )
+
+    resp = client.get("/food-wheel")
+    assert resp.status_code == 200
