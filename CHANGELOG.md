@@ -2,6 +2,32 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-04-20
+### Changed
+- UOM field is now a standardized dropdown (L, mL, kg, g, unit, pack, dose, roll, m2, kWh) (#124)
+### Added
+- app/uom_constants.py: UOM_OPTIONS with EN/PT labels and normalize_uom() alias helper
+- Excel/CSV import UOM normalization (common aliases mapped to standard keys)
+- i18n keys: form.uom, form.uom_placeholder, uom.* (EN + PT)
+
+## [1.3.2] - 2026-04-20
+### Fixed
+- Food wheel calculations now exclude non-food items (item_category=non_food) (#134)
+- Backward compatible: items without item_category (legacy/NULL) still included as food
+
+## [1.3.3] - 2026-04-20
+### Added
+- GET /api/items now accepts ?category= and ?non_food_category= query params (#135)
+- item_category and non_food_category included in all ItemRead API responses (#135)
+
+## [1.3.0] - 2026-04-20
+### Changed
+- expiry_date is now optional for non-food items (except medicine, seeds, energy) (#123)
+### Added
+- Server-side validation: expiry_date required for food, medicine, seeds, energy
+- Item form JS: dynamically toggles expiry required based on item type
+- i18n keys: form.expiry_optional_hint (EN + PT)
+
 ## [1.2.9] - 2026-04-20
 ### Added
 - item_category field on StockItem: "food" (default) | "non_food" (#122)
