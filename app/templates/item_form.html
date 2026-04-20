@@ -104,7 +104,14 @@
         </div>
         <div class="col-md-3">
           <label class="form-label">{{ t("label.uom") }}</label>
-          <input class="form-control" name="uom" value="{{ draft.uom or '' }}" placeholder="g, kg, ml, l…" />
+          <select class="form-select" id="uom" name="uom">
+            <option value="">{{ t('form.uom_placeholder') }}</option>
+            {% for key, labels in uom_options.items() %}
+            <option value="{{ key }}" {% if draft.uom == key %}selected{% endif %}>
+              {{ labels[lang] if lang in labels else labels['en'] }}
+            </option>
+            {% endfor %}
+          </select>
         </div>
         <div class="col-md-6">
           <label class="form-label">{{ t("label.food_group") }}</label>
@@ -198,8 +205,9 @@
             <input class="form-control form-control-sm" name="row_batch_code" value="{{ batch.batch_code or '' }}" />
           </div>
           <div class="col-md-2 col-sm-6">
-            <label class="form-label small fw-semibold">{{ t("label.expiry_date") }} <span class="text-danger">*</span></label>
-            <input class="form-control form-control-sm" name="row_expiry" type="date" value="{{ batch.expiry_date or '' }}" required />
+            <label class="form-label small fw-semibold expiry-label">{{ t("label.expiry_date") }} <span class="text-danger expiry-required-star">*</span></label>
+            <input class="form-control form-control-sm expiry-input" name="row_expiry" type="date" value="{{ batch.expiry_date or '' }}" />
+            <small class="text-muted d-none expiry-optional-hint">{{ t("form.expiry_optional_hint") }}</small>
           </div>
           <div class="col-md-1 col-sm-4">
             <label class="form-label small">{{ t("label.quantity") }}</label>
@@ -257,8 +265,9 @@
             <input class="form-control form-control-sm" name="row_batch_code" />
           </div>
           <div class="col-md-2 col-sm-6">
-            <label class="form-label small fw-semibold">{{ t("label.expiry_date") }} <span class="text-danger">*</span></label>
-            <input class="form-control form-control-sm" name="row_expiry" type="date" required />
+            <label class="form-label small fw-semibold expiry-label">{{ t("label.expiry_date") }} <span class="text-danger expiry-required-star">*</span></label>
+            <input class="form-control form-control-sm expiry-input" name="row_expiry" type="date" />
+            <small class="text-muted d-none expiry-optional-hint">{{ t("form.expiry_optional_hint") }}</small>
           </div>
           <div class="col-md-1 col-sm-4">
             <label class="form-label small">{{ t("label.quantity") }}</label>
@@ -336,7 +345,14 @@
     </div>
     <div class="col-md-3">
       <label class="form-label">{{ t("label.uom") }}</label>
-      <input class="form-control" name="uom" value="{{ draft.uom or '' }}" placeholder="g, kg, ml, l…" />
+      <select class="form-select" id="uom" name="uom">
+        <option value="">{{ t('form.uom_placeholder') }}</option>
+        {% for key, labels in uom_options.items() %}
+        <option value="{{ key }}" {% if draft.uom == key %}selected{% endif %}>
+          {{ labels[lang] if lang in labels else labels['en'] }}
+        </option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-md-6">
       <label class="form-label">{{ t("label.food_group") }}</label>
@@ -402,8 +418,9 @@
             <input class="form-control form-control-sm" name="loc_batch_code" />
           </div>
           <div class="col-md-2 col-sm-6">
-            <label class="form-label small fw-semibold">{{ t("label.expiry_date") }} <span class="text-danger">*</span></label>
-            <input class="form-control form-control-sm" name="loc_expiry" type="date" required />
+            <label class="form-label small fw-semibold expiry-label">{{ t("label.expiry_date") }} <span class="text-danger expiry-required-star">*</span></label>
+            <input class="form-control form-control-sm expiry-input" name="loc_expiry" type="date" />
+            <small class="text-muted d-none expiry-optional-hint">{{ t("form.expiry_optional_hint") }}</small>
           </div>
           <div class="col-md-1 col-sm-4">
             <label class="form-label small">{{ t("label.quantity") }}</label>
@@ -770,7 +787,7 @@
       // weight / uom
       const wcInput = document.querySelector("input[name='weight_capacity']");
       if (wcInput && data.weight_capacity != null) wcInput.value = data.weight_capacity;
-      const uomInput = document.querySelector("input[name='uom']");
+      const uomInput = document.querySelector("select[name='uom']");
       if (uomInput && data.uom) uomInput.value = data.uom;
     }
 
@@ -845,6 +862,30 @@
         localStorage.setItem(STORAGE_KEY, continueCheck.checked ? "1" : "0");
       });
     }
+
+    // Expiry required toggle (#123)
+    function updateExpiryRequired() {
+      var cat = document.querySelector('[name="item_category"]');
+      var nfc = document.querySelector('[name="non_food_category"]');
+      var catVal = cat ? cat.value : "food";
+      var nfcVal = nfc ? nfc.value : "";
+      var needsExpiry = catVal === "food" || ["medicine", "seeds", "energy"].includes(nfcVal);
+      document.querySelectorAll(".expiry-input").forEach(function(inp) {
+        inp.required = needsExpiry;
+      });
+      document.querySelectorAll(".expiry-required-star").forEach(function(star) {
+        star.classList.toggle("d-none", !needsExpiry);
+      });
+      document.querySelectorAll(".expiry-optional-hint").forEach(function(hint) {
+        hint.classList.toggle("d-none", needsExpiry);
+      });
+    }
+    document.addEventListener("DOMContentLoaded", updateExpiryRequired);
+    updateExpiryRequired();
+    ["item_category", "non_food_category"].forEach(function(name) {
+      var el = document.querySelector('[name="' + name + '"]');
+      if (el) el.addEventListener("change", updateExpiryRequired);
+    });
   })();
 
   // ── Image URL preview (removed live preview to avoid DOM-based injection) ──

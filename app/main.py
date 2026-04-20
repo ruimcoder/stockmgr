@@ -35,6 +35,7 @@ from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import LocationPlan, StockItem, StockMovement, User
 from app.non_food_categories import ITEM_CATEGORIES, NON_FOOD_CATEGORIES
+from app.uom_constants import UOM_OPTIONS
 from app.pdf_utils import generate_table_pdf
 from app.schemas import (
     BarcodeLookupRequest,
@@ -210,6 +211,7 @@ def _render(
         "food_groups_map": _FOOD_GROUPS_MAP,
         "non_food_categories": NON_FOOD_CATEGORIES,
         "item_categories": ITEM_CATEGORIES,
+        "uom_options": UOM_OPTIONS,
     }
     if context:
         payload.update(context)
@@ -393,6 +395,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "food_group",
         "weight_capacity",
         "uom",
+        "item_category",
+        "non_food_category",
     ):
         value = form.get(key)
         if key == "storage_bucket":
@@ -405,6 +409,9 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
             payload[key] = int(value) if value not in ("", None) else 0
         elif key == "weight_capacity":
             payload[key] = float(value) if value not in ("", None) else None
+        elif key in ("item_category", "non_food_category"):
+            if value not in ("", None):
+                payload[key] = value
         else:
             payload[key] = value if value not in ("", None) else None
     return payload

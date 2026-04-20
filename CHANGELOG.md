@@ -2,23 +2,25 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.4] - 2026-04-21
+### Changed
+- UOM field is now a standardized dropdown (L, mL, kg, g, unit, pack, dose, roll, m2, kWh) (#124)
+### Added
+- app/uom_constants.py: UOM_OPTIONS (10 units with EN/PT labels) and normalize_uom() alias helper
+- Excel/CSV import UOM normalization (common aliases mapped to standard keys)
+- i18n keys: form.uom, form.uom_placeholder, uom.* (EN + PT)
+
 ## [1.3.3] - 2026-04-21
 ### Changed
 - expiry_date is now optional for non-food items (except medicine, seeds, energy) (#123)
 ### Added
-- Server-side validation: expiry_date required for food, medicine, seeds, energy
-- Item form JS: dynamically toggles expiry required based on item type
+- Server-side validation: expiry_date required for food, medicine, seeds, energy items
+- GET /api/items accepts `?category=` and `?non_food_category=` query params (#135)
+- `item_category` and `non_food_category` in all `ItemRead` API responses (#135)
 - i18n keys: form.expiry_optional_hint (EN + PT)
-
-## [1.3.2] - 2026-04-20
 ### Fixed
 - Food wheel calculations now exclude non-food items (item_category=non_food) (#134)
-- Backward compatible: items without item_category (legacy/NULL) still included as food
-
-## [1.3.3] - 2026-04-20
-### Added
-- GET /api/items now accepts ?category= and ?non_food_category= query params (#135)
-- item_category and non_food_category included in all ItemRead API responses (#135)
+- Backward compatible: items without item_category (legacy/NULL) still included as food (#134)
 
 ## [1.2.9] - 2026-04-20
 ### Added
@@ -64,12 +66,12 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
   - Column headers repeated on every page via `FPDF.header()`
   - Alternating row shading for readability
   - Page number and generation timestamp in the footer
-  - Auto-selection of portrait (≤6 columns) or landscape (>6 columns) orientation
+  - Auto-selection of portrait (Γëñ6 columns) or landscape (>6 columns) orientation
 - **`POST /api/pdf/table` API endpoint**: session-authenticated JSON endpoint accepting `{title, filters, columns, rows}`, returning `application/pdf` with `Content-Disposition: attachment`. No CSRF required (read-only, session auth sufficient).
 - **`fpdf2`** added to `requirements.txt`.
 
 ### Changed
-- `table-enhance.js`: column label text is now stamped as `data-col-label` on each `<th>` before sort buttons replace the text content — used both for PDF column headers and for filter summaries.
+- `table-enhance.js`: column label text is now stamped as `data-col-label` on each `<th>` before sort buttons replace the text content ΓÇö used both for PDF column headers and for filter summaries.
 - `beforeprint`/`afterprint` handlers retained so Ctrl+P / browser print still expands all filtered rows correctly.
 
 ## [1.2.4] - 2026-03-17
@@ -81,7 +83,7 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 ## [1.2.3] - 2026-03-17
 
 ### Fixed
-- **Mixed content blocking all static assets (#103, #95)**: `url_for('static', path=...)` in Jinja2 was generating absolute `http://` URLs. Because the app runs behind Azure's HTTPS reverse proxy without `ProxyHeadersMiddleware`, FastAPI saw every request as HTTP and built HTTP static-file URLs. Browsers block `http://` scripts and stylesheets loaded from an `https://` page as mixed content — silently, in the background. This prevented `table-enhance.js` (and `site.css`) from ever loading, which is why column sorting never worked regardless of the JavaScript fixes applied in v1.2.1 and v1.2.2.
+- **Mixed content blocking all static assets (#103, #95)**: `url_for('static', path=...)` in Jinja2 was generating absolute `http://` URLs. Because the app runs behind Azure's HTTPS reverse proxy without `ProxyHeadersMiddleware`, FastAPI saw every request as HTTP and built HTTP static-file URLs. Browsers block `http://` scripts and stylesheets loaded from an `https://` page as mixed content ΓÇö silently, in the background. This prevented `table-enhance.js` (and `site.css`) from ever loading, which is why column sorting never worked regardless of the JavaScript fixes applied in v1.2.1 and v1.2.2.
   - **Fix**: replaced all `url_for('static', path='...')` calls in `base.html` and `device_check.html` with root-relative `/static/...` paths. A root-relative path inherits the page scheme, so it is always `https://` in production and works correctly in local HTTP development too.
 
 ## [1.2.2] - 2026-03-17
@@ -91,13 +93,13 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
   - Sort styles moved to `site.css` (always loaded, no runtime injection)
   - `site.css`, `table-enhance.js`, and `pwa-register.js` URLs now include `?v={{ app_version_semantic }}` for automatic cache-busting on every release
   - Controls and pagination now inserted outside `.table-responsive` wrapper (avoids clipping by overflow container)
-  - Sort click handling switched to a single delegated listener on `<thead>` using `data-sort-col` stamps — more robust than per-button handlers
+  - Sort click handling switched to a single delegated listener on `<thead>` using `data-sort-col` stamps ΓÇö more robust than per-button handlers
   - Each table's forEach wrapped in `try/catch` so one failing table can't prevent others from being enhanced
 
 ## [1.2.1] - 2026-03-17
 
 ### Fixed
-- **Table column sorting non-functional (#95)**: sort click handlers were registered on `<th>` elements but produced no response in many browsers due to event-capture interference and lack of visible affordance. Fixed by replacing each sortable header's text with an explicit `<button class="sort-btn btn btn-link">` element — guarantees a reliable, browser-native click target.
+- **Table column sorting non-functional (#95)**: sort click handlers were registered on `<th>` elements but produced no response in many browsers due to event-capture interference and lack of visible affordance. Fixed by replacing each sortable header's text with an explicit `<button class="sort-btn btn btn-link">` element ΓÇö guarantees a reliable, browser-native click target.
 - **Sort header hover feedback**: column headers now highlight with a light primary tint on hover, giving users a clear visual cue that headers are interactive.
 
 ## [1.2.0] - 2026-03-17
@@ -107,9 +109,9 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 - **Sorting on all lists** (#95): added `data-enhanced-table` to unidose-plan table and food-wheel stats/plan-items tables; all lists now support column sorting and filtering via table-enhance.js
 - **Item list enhancements** (#96):
   - Every item name is now a link to its product detail page across all list views (renewals, shopping list, unidose plan; was already present on homepage and stock views)
-  - Hover over any item name → Bootstrap popover shows product image (if available) and name
+  - Hover over any item name ΓåÆ Bootstrap popover shows product image (if available) and name
   - Nutriscore badges now show a tooltip with full label on hover (e.g. "Nutri-score A")
-  - New food group icon (12 px coloured circle) next to each item — hover shows group name
+  - New food group icon (12 px coloured circle) next to each item ΓÇö hover shows group name
   - Food group data injected globally via `_render()` (`food_groups_map`); shopping list rows enriched with `image_url`
   - Overall and validity stock-view queries extended with `food_group` column
 
@@ -125,17 +127,17 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 
 
 ### Fixed
-- **Food wheel 500 (regression)**: `plan_tabs` was passing live SQLAlchemy ORM objects to Jinja2; after the session closes, Starlette renders the template and attribute access on expired instances raises `DetachedInstanceError`. Fixed by converting `LocationPlan` and `StockItem` entries to plain dicts before returning from the route. Also renamed dict key `items` → `plan_items` to avoid collision with Python's built-in `dict.items` method, which Jinja2 resolves as a callable instead of the dict value.
+- **Food wheel 500 (regression)**: `plan_tabs` was passing live SQLAlchemy ORM objects to Jinja2; after the session closes, Starlette renders the template and attribute access on expired instances raises `DetachedInstanceError`. Fixed by converting `LocationPlan` and `StockItem` entries to plain dicts before returning from the route. Also renamed dict key `items` ΓåÆ `plan_items` to avoid collision with Python's built-in `dict.items` method, which Jinja2 resolves as a callable instead of the dict value.
 
 ## [1.1.1] - 2026-03-16
 
 ### Fixed
-- **Product detail 500**: `LocationPlan.days` does not exist — corrected to `stock_duration_days` (#87)
+- **Product detail 500**: `LocationPlan.days` does not exist ΓÇö corrected to `stock_duration_days` (#87)
 - **Food wheel 500 on mobile**: wrapped full route body in try/except with structured logging; inner chart errors also now isolated (#88)
 - **Unidose plan print**: added A4 print/PDF button with repeating table headers (#89)
 
 ### Changed
-- Merged authlib security update 1.6.7 → 1.6.9 (#90)
+- Merged authlib security update 1.6.7 ΓåÆ 1.6.9 (#90)
 
 ## [1.1.0] - 2026-03-16
 
@@ -147,14 +149,14 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 - **JSON validation in config page**: client-side validation with error position before saving provider config (#82)
 
 ### Fixed
-- **`GET /items/unidose-plan`**: route decorator was missing — page now loads correctly (#79)
+- **`GET /items/unidose-plan`**: route decorator was missing ΓÇö page now loads correctly (#79)
 - **Food wheel 500 error**: added error guard around chart data computation (#80)
-- **Column sort indicators**: ↑/↓/⇅ icons on all sortable table columns in all stock views (#78)
+- **Column sort indicators**: Γåæ/Γåô/Γçà icons on all sortable table columns in all stock views (#78)
 
 ## [1.0.0] - 2026-02-20
 
 ### Added
-- **AJAX barcode lookup**: converts barcode search to fetch-based flow — no page refresh; provider badges show attempt results
+- **AJAX barcode lookup**: converts barcode search to fetch-based flow ΓÇö no page refresh; provider badges show attempt results
 - **Barcode lookup progress overlay**: spinner with cycling provider names; stops when response arrives
 - **Nutriscore UI**: editable select in forms, colour-coded badges in list views
 - **Config admin page** (`/admin/config`): live editing of barcode provider JSON with `reload_config()`
@@ -172,7 +174,7 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 ### Fixed
 - URL path separator bug when product names contain `/`
 - Auto-submit barcode loop fixed with `lookupAlreadyDone` guard (superseded by AJAX approach)
-- CSRF token suppressed by overlay `disabled` attribute — fixed by removing input disable logic
+- CSRF token suppressed by overlay `disabled` attribute ΓÇö fixed by removing input disable logic
 
 ## [0.9.0] - 2026-01-15
 
