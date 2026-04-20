@@ -857,3 +857,55 @@ def test_food_wheel_with_location_plan(client):
     response = client.get("/food-wheel")
     assert response.status_code == 200
     assert "Food Wheel" in response.text
+
+
+# --- Admin backup API tests ---
+
+def test_api_admin_backup_returns_200_for_admin(client):
+    resp = client.post("/api/admin/backup")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "filename" in data
+    assert "backup" in data["filename"]
+    assert data["size_bytes"] > 0
+
+
+def test_api_admin_backups_list(client):
+    client.post("/api/admin/backup")
+    resp = client.get("/api/admin/backups")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "backups" in data
+    assert isinstance(data["backups"], list)
+    assert len(data["backups"]) >= 1
+
+
+def test_api_admin_restore_valid_filename(client):
+    backup_resp = client.post("/api/admin/backup")
+    assert backup_resp.status_code == 200
+    filename = backup_resp.json()["filename"]
+    restore_resp = client.post("/api/admin/restore", json={"filename": filename})
+    assert restore_resp.status_code == 200
+    assert restore_resp.json()["restored"] is True
+
+
+def test_api_admin_restore_nonexistent_returns_404(client):
+    resp = client.post("/api/admin/restore", json={"filename": "nonexistent_backup_99999999_000000.db"})
+    assert resp.status_code == 404
+
+
+def test_api_admin_backup_403_for_non_admin(anon_client):
+    with Session(engine) as session:
+        user = User(
+            email="regular@example.com",
+            display_name="Regular",
+            oauth_provider="dev",
+            oauth_subject="regular@example.com",
+            approval_status="approved",
+            is_admin=False,
+        )
+        session.add(user)
+        session.commit()
+    anon_client.post("/auth/dev-login", data={"email": "regular@example.com"}, follow_redirects=False)
+    resp = anon_client.post("/api/admin/backup")
+    assert resp.status_code == 403

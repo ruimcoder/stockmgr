@@ -32,4 +32,142 @@
     </div>
   </div>
 </div>
+
+{% if user.is_admin %}
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ t("settings.backup.title") }}</span>
+        <button id="btn-create-backup" class="btn btn-sm btn-primary">{{ t("settings.backup.create") }}</button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-2">{{ t("settings.backup.list") }}</p>
+        <div id="backup-alert" class="d-none mb-2"></div>
+        <table class="table table-sm table-striped mb-0" id="backup-table">
+          <thead>
+            <tr>
+              <th>{{ t("settings.backup.filename") }}</th>
+              <th>{{ t("settings.backup.size") }}</th>
+              <th>{{ t("settings.backup.date") }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="backup-list-body">
+            <tr><td colspan="4" class="text-muted">{{ t("settings.backup.no_backups") }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Restore confirmation modal -->
+<div class="modal fade" id="restoreModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ t("settings.backup.restore") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>{{ t("settings.backup.confirm") }}</p>
+        <p class="fw-semibold" id="restore-filename-display"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t("common.cancel") }}</button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-restore">{{ t("settings.backup.restore") }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var restoreFilename = null;
+  var restoreModal = new bootstrap.Modal(document.getElementById('restoreModal'));
+
+  function showAlert(msg, type) {
+    var el = document.getElementById('backup-alert');
+    el.className = 'alert alert-' + type;
+    el.textContent = msg;
+    el.classList.remove('d-none');
+  }
+
+  function formatSize(bytes) {
+    return (bytes / 1024).toFixed(1) + ' KB';
+  }
+
+  function formatDate(iso) {
+    return new Date(iso).toLocaleString();
+  }
+
+  function renderBackups(backups) {
+    var tbody = document.getElementById('backup-list-body');
+    if (!backups || backups.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-muted">{{ t("settings.backup.no_backups") }}</td></tr>';
+      return;
+    }
+    tbody.innerHTML = backups.map(function (b) {
+      return '<tr>' +
+        '<td class="font-monospace small">' + b.filename + '</td>' +
+        '<td>' + formatSize(b.size_bytes) + '</td>' +
+        '<td>' + formatDate(b.created_at) + '</td>' +
+        '<td><button class="btn btn-sm btn-outline-warning btn-restore" data-filename="' + b.filename + '">{{ t("settings.backup.restore") }}</button></td>' +
+        '</tr>';
+    }).join('');
+    tbody.querySelectorAll('.btn-restore').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        restoreFilename = btn.getAttribute('data-filename');
+        document.getElementById('restore-filename-display').textContent = restoreFilename;
+        restoreModal.show();
+      });
+    });
+  }
+
+  function loadBackups() {
+    fetch('/api/admin/backups')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { renderBackups(data.backups); })
+      .catch(function () { showAlert('Failed to load backups.', 'danger'); });
+  }
+
+  document.getElementById('btn-create-backup').addEventListener('click', function () {
+    fetch('/api/admin/backup', { method: 'POST' })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          showAlert('{{ t("settings.backup.created") }}', 'success');
+          loadBackups();
+        } else {
+          showAlert(res.data.detail || 'Error creating backup.', 'danger');
+        }
+      })
+      .catch(function () { showAlert('Error creating backup.', 'danger'); });
+  });
+
+  document.getElementById('btn-confirm-restore').addEventListener('click', function () {
+    if (!restoreFilename) return;
+    restoreModal.hide();
+    fetch('/api/admin/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: restoreFilename })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          showAlert('{{ t("settings.backup.restored") }}', 'success');
+          loadBackups();
+        } else {
+          showAlert(res.data.detail || 'Error restoring backup.', 'danger');
+        }
+      })
+      .catch(function () { showAlert('Error restoring backup.', 'danger'); });
+  });
+
+  loadBackups();
+})();
+</script>
+{% endif %}
 {% endblock %}
