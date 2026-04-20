@@ -43,8 +43,10 @@ class StockItem(SQLModel, table=True):
     food_group: str | None = Field(default=None)
     weight_capacity: float | None = Field(default=None)
     uom: str | None = Field(default=None)
+    item_category: str = Field(default="food", nullable=False)
+    non_food_category: str | None = Field(default=None)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+    created_at: datetime= Field(default_factory=lambda: datetime.now(UTC), nullable=False)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
 
 

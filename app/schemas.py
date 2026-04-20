@@ -40,6 +40,8 @@ class ItemBase(BaseModel):
     food_group: str | None = None
     weight_capacity: float | None = None
     uom: str | None = None
+    item_category: str = "food"
+    non_food_category: str | None = None
 
     @field_validator("name", "item_type", "storage_location")
     @classmethod
