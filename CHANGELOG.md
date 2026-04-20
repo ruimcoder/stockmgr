@@ -2,6 +2,11 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.8] - 2026-04-20
+### Added
+- Database backup and restore mechanism: automatic backup on startup, admin API endpoints, Settings UI panel (#121)
+- `scripts/backup_db.py` standalone backup CLI
+
 ## [1.2.7] - 2026-03-18
 
 ### Changed

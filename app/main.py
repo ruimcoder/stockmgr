@@ -28,8 +28,9 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.backup_utils import create_backup, list_backups, restore_backup
 from app.config import get_settings
-from app.db import get_session, init_db
+from app.db import _sqlite_path_from_url, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import LocationPlan, StockItem, StockMovement, User
@@ -69,6 +70,11 @@ async def lifespan(_: FastAPI):
                 "SECRET_KEY is set to the default insecure value. "
                 "Set a strong SECRET_KEY environment variable before running in production."
             )
+    db_file = _sqlite_path_from_url(settings.database_url)
+    if db_file is not None:
+        if not db_file.is_absolute():
+            db_file = (Path.cwd() / db_file).resolve()
+        create_backup(db_file)
     init_db()
     yield
 
@@ -3208,6 +3214,58 @@ async def telegram_webhook():
             "Run scripts/telegram_copilot_bridge.py for Telegram <-> Copilot CLI chat."
         ),
     )
+
+
+class BackupRestoreRequest(BaseModel):
+    filename: str
+
+
+def _get_db_file() -> Path | None:
+    db_file = _sqlite_path_from_url(settings.database_url)
+    if db_file is not None and not db_file.is_absolute():
+        db_file = (Path.cwd() / db_file).resolve()
+    return db_file
+
+
+@app.post("/api/admin/backup")
+async def api_admin_backup(current_user: User = Depends(_require_api_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    db_file = _get_db_file()
+    backup_path = create_backup(db_file)
+    if backup_path is None:
+        raise HTTPException(status_code=404, detail="Database file not found")
+    stat = backup_path.stat()
+    return {
+        "filename": backup_path.name,
+        "size_bytes": stat.st_size,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+@app.post("/api/admin/restore")
+async def api_admin_restore(
+    req: BackupRestoreRequest, current_user: User = Depends(_require_api_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    db_file = _get_db_file()
+    ok = restore_backup(db_file, req.filename)
+    if not ok:
+        raise HTTPException(404, detail=f"Backup not found: {req.filename}")
+    return {
+        "restored": True,
+        "filename": req.filename,
+        "message": "Database restored. Please reload the application.",
+    }
+
+
+@app.get("/api/admin/backups")
+async def api_admin_list_backups(current_user: User = Depends(_require_api_user)):
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    db_file = _get_db_file()
+    return {"backups": list_backups(db_file)}
 
 
 @app.exception_handler(HTTPException)
