@@ -2,6 +2,13 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.9] - 2026-04-20
+### Added
+- item_category field on StockItem: "food" (default) | "non_food" (#122)
+- non_food_category field on StockItem: medicine/energy/tools/hygiene/seeds/communication/security/other (#122)
+- app/non_food_categories.py: category constants with EN/PT translations
+- i18n keys: category.food, category.non_food, nfc.* (EN + PT)
+
 ## [1.2.8] - 2026-04-20
 ### Added
 - Database backup and restore mechanism: automatic backup on startup, admin API endpoints, Settings UI panel (#121)
