@@ -5,6 +5,37 @@ from app.models import BenchmarkItem
 from sqlmodel import Session, select
 
 
+def sync_location_benchmarks(session: Session) -> int:
+    """Ensure every active BenchmarkItem has a LocationBenchmark row for every LocationPlan location.
+
+    Creates missing rows with is_enabled=True, no override. Returns count of rows created.
+    """
+    from app.models import LocationBenchmark, LocationPlan  # noqa: PLC0415
+
+    locations = session.exec(select(LocationPlan)).all()
+    active_items = session.exec(select(BenchmarkItem).where(BenchmarkItem.is_active == True)).all()  # noqa: E712
+    created = 0
+    for loc in locations:
+        for item in active_items:
+            exists = session.exec(
+                select(LocationBenchmark).where(
+                    LocationBenchmark.location == loc.location,
+                    LocationBenchmark.benchmark_item_id == item.id,
+                )
+            ).first()
+            if not exists:
+                session.add(LocationBenchmark(
+                    location=loc.location,
+                    benchmark_item_id=item.id,
+                    is_enabled=True,
+                    qty_override=None,
+                ))
+                created += 1
+    if created:
+        session.commit()
+    return created
+
+
 def seed_benchmark_if_empty(session: Session) -> int:
     """Insert benchmark items if the table is empty. Returns count inserted."""
     existing = session.exec(select(BenchmarkItem)).first()

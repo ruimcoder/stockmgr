@@ -2,6 +2,13 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.8] - 2026-04-21
+### Added
+- `LocationBenchmark` SQLModel table for per-location benchmark overrides (#128)
+- `sync_location_benchmarks()` in `app/benchmark_seed.py`: ensures every active `BenchmarkItem` has a `LocationBenchmark` row for every `LocationPlan` location; called at startup via lifespan (#128)
+- `app/gap_utils.py`: `get_target_qty()` helper — calculates target stock quantity respecting per-location overrides, enable/disable flag, and participant scaling (#128)
+- Tests in `tests/test_location_benchmark.py` covering scaling, overrides, disabled items, sync creation and idempotency (#128)
+
 ## [1.3.7] - 2026-04-21
 ### Added
 - Benchmark management UI at `/benchmark` (admin only) (#127)

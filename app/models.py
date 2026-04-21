@@ -100,3 +100,15 @@ class BenchmarkItem(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class LocationBenchmark(SQLModel, table=True):
+    """Per-location overrides for benchmark items."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    location: str = Field(index=True, nullable=False)
+    benchmark_item_id: int = Field(index=True, nullable=False)
+    is_enabled: bool = Field(default=True)
+    qty_override: float | None = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
