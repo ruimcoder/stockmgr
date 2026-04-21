@@ -1,6 +1,24 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
+
+## [1.4.6] - 2026-04-22
+### Added
+- Configurable items-per-page dropdown with options [10, 25, 50, 100, 250] in all enhanced tables (#156)
+- "Per page:" label added to the page-size control via Bootstrap input-group (#156)
+- Page size selection persists across page loads via `localStorage` (key `table-page-size`) (#156)
+- Pagination info now shows total filtered record count, e.g. "Page 2 / 5 (42 records)" (#156)
+
+## [1.4.7] - 2026-04-21
+### Added
+- `qty_period` field on `BenchmarkItem` (day/week/month/fixed) to specify the time basis of the benchmark quantity (#157)
+- DB migration: ALTER TABLE benchmarkitem ADD COLUMN qty_period for existing databases
+- `_effective_daily_qty()` helper normalises qty to daily equivalent (week/7, month/30, fixed=absolute)
+- `fixed` items bypass participant and duration scaling in gap analysis
+- Period column and select in benchmark admin table + Add/Edit modals
+- Inactive benchmark rows rendered with `table-row-inactive` CSS class (opacity 0.45)
+- i18n keys: benchmark.qty_period, benchmark.period_day/week/month/fixed (EN + PT)
+- Seed data: seeds, tools and communication items default to qty_period=fixed
 
 ## [1.4.4] - 2026-04-21
 ### Security

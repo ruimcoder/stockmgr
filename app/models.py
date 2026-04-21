@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+﻿from datetime import UTC, date, datetime
 
 from sqlmodel import Field, SQLModel
 
@@ -91,7 +91,8 @@ class BenchmarkItem(SQLModel, table=True):
     name_pt: str = Field(nullable=False)
     item_category: str = Field(nullable=False)        # "food" | "non_food"
     non_food_category: str | None = Field(default=None)  # e.g. "medicine"
-    qty_per_day: float = Field(nullable=False)        # per person (or household if scales=False)
+    qty_per_day: float = Field(nullable=False)        # per person (or household if scales=False)    qty_period: str = Field(default="day")            # "day" | "week" | "month" | "fixed"
+
     uom: str = Field(nullable=False)                  # from UOM_OPTIONS keys
     scales_with_participants: bool = Field(default=True)
     notes: str | None = Field(default=None)

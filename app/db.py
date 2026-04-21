@@ -127,6 +127,17 @@ def _migrate_legacy_schema() -> None:
             "UPDATE stockitem SET target_unidoses_location = COALESCE(target_unidoses_location, 0);"
         )
 
+        # benchmarkitem table -- add qty_period if missing (issue #157)
+        has_bi = connection.exec_driver_sql(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='benchmarkitem';"
+        ).fetchone()
+        if has_bi:
+            bi_cols = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(benchmarkitem);").fetchall()}
+            if "qty_period" not in bi_cols:
+                connection.exec_driver_sql(
+                    "ALTER TABLE benchmarkitem ADD COLUMN qty_period TEXT NOT NULL DEFAULT 'day';"
+                )
+
         # locationplan table — created by create_all but ensure for older DBs
         has_locationplan = connection.exec_driver_sql(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='locationplan';"

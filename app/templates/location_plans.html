@@ -5,65 +5,14 @@
     <h1 class="h4 mb-0">{{ t("location_plan.title") }}</h1>
     <p class="text-muted mb-0">{{ t("location_plan.subtitle") }}</p>
   </div>
+  <button class="btn btn-primary btn-sm" id="new-plan-btn">
+    <i class="bi bi-plus-lg"></i> {{ t("location_plan.add") }}
+  </button>
 </div>
 
 {% if message %}
 <div class="alert alert-success py-2">{{ t("msg." ~ message) }}</div>
 {% endif %}
-
-<!-- Create / Edit form -->
-<div class="card mb-4">
-  <div class="card-header">
-    {% if edit_plan %}{{ t("location_plan.edit_title") }}{% else %}{{ t("location_plan.add") }}{% endif %}
-  </div>
-  <div class="card-body">
-    <form method="post" action="{% if edit_plan %}/location-plans/{{ edit_plan.id }}/update{% else %}/location-plans{% endif %}" class="row g-3">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
-      <div class="col-md-4">
-        <label class="form-label fw-semibold">{{ t("location_plan.location") }}</label>
-        <input
-          class="form-control"
-          name="location"
-          value="{{ edit_plan.location if edit_plan else '' }}"
-          required
-          {% if edit_plan %}readonly{% endif %}
-        />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label fw-semibold">{{ t("location_plan.participants") }}</label>
-        <input
-          class="form-control"
-          name="participants"
-          type="number"
-          min="1"
-          step="1"
-          value="{{ edit_plan.participants if edit_plan else 1 }}"
-          required
-        />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label fw-semibold">{{ t("location_plan.duration_days") }}</label>
-        <input
-          class="form-control"
-          name="stock_duration_days"
-          type="number"
-          min="1"
-          step="1"
-          value="{{ edit_plan.stock_duration_days if edit_plan else 1 }}"
-          required
-        />
-      </div>
-      <div class="col-md-2 d-flex align-items-end gap-2">
-        <button class="btn btn-primary" type="submit">
-          {% if edit_plan %}{{ t("common.save_changes") }}{% else %}{{ t("location_plan.add") }}{% endif %}
-        </button>
-        {% if edit_plan %}
-        <a class="btn btn-outline-secondary" href="/location-plans">{{ t("common.cancel") }}</a>
-        {% endif %}
-      </div>
-    </form>
-  </div>
-</div>
 
 <!-- Plans table -->
 <div class="card">
@@ -90,7 +39,14 @@
           <td>{{ plan.snack_meals_total }}</td>
           <td><span class="badge bg-primary fs-6">{{ plan.total_meal_occasions }}</span></td>
           <td class="text-nowrap">
-            <a class="btn btn-sm btn-outline-primary" href="/location-plans/{{ plan.id }}/edit" title="{{ t('common.edit') }}"><i class="bi bi-pencil"></i></a>
+            <button class="btn btn-sm btn-outline-primary edit-plan-btn"
+              data-id="{{ plan.id }}"
+              data-location="{{ plan.location }}"
+              data-participants="{{ plan.participants }}"
+              data-duration="{{ plan.stock_duration_days }}"
+              title="{{ t('common.edit') }}">
+              <i class="bi bi-pencil"></i>
+            </button>
             <a class="btn btn-sm btn-outline-secondary" href="/location-plans/{{ plan.location | urlencode_path }}/benchmark" title="{{ t('location_benchmark.configure') }}"><i class="bi bi-list-check"></i></a>
             <form method="post" action="/location-plans/{{ plan.id }}/delete" class="d-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
@@ -107,4 +63,72 @@
     </table>
   </div>
 </div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="editPlanModal" tabindex="-1" aria-labelledby="editPlanModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="plan-form" action="/location-plans">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+        <div class="modal-header">
+          <h5 class="modal-title" id="editPlanModalLabel">{{ t("location_plan.add") }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ t("location_plan.location") }}</label>
+            <input type="text" class="form-control" name="location" id="modal-location" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ t("location_plan.participants") }}</label>
+            <input type="number" class="form-control" name="participants" id="modal-participants" min="1" step="1" value="1" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ t("location_plan.duration_days") }}</label>
+            <input type="number" class="form-control" name="stock_duration_days" id="modal-duration" min="1" step="1" value="1" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t("common.cancel") }}</button>
+          <button type="submit" class="btn btn-primary">{{ t("common.save_changes") }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const titleAdd = {{ t("location_plan.add") | tojson }};
+  const titleEdit = {{ t("location_plan.edit_title") | tojson }};
+  const form = document.getElementById('plan-form');
+  const modalLabel = document.getElementById('editPlanModalLabel');
+  const locationInput = document.getElementById('modal-location');
+  const participantsInput = document.getElementById('modal-participants');
+  const durationInput = document.getElementById('modal-duration');
+
+  document.getElementById('new-plan-btn').addEventListener('click', function () {
+    modalLabel.textContent = titleAdd;
+    form.action = '/location-plans';
+    locationInput.value = '';
+    locationInput.readOnly = false;
+    participantsInput.value = 1;
+    durationInput.value = 1;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editPlanModal')).show();
+  });
+
+  document.querySelectorAll('.edit-plan-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const id = this.dataset.id;
+      modalLabel.textContent = titleEdit;
+      form.action = '/location-plans/' + id + '/update';
+      locationInput.value = this.dataset.location;
+      locationInput.readOnly = true;
+      participantsInput.value = this.dataset.participants;
+      durationInput.value = this.dataset.duration;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('editPlanModal')).show();
+    });
+  });
+})();
+</script>
 {% endblock %}

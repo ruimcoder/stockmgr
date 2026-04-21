@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import json
@@ -1316,7 +1316,6 @@ def location_plans_list(request: Request, session: Session = Depends(get_session
         {
             "user": maybe_user,
             "plans": plans,
-            "edit_plan": None,
             "message": _fetch_message(request),
         },
     )
@@ -1352,24 +1351,6 @@ async def location_plans_create(
         session.add(LocationPlan(**plan_in.model_dump()))
     session.commit()
     return RedirectResponse("/location-plans?m=location-plan-saved", status_code=303)
-
-
-@app.get("/location-plans/{plan_id}/edit")
-def location_plans_edit(
-    plan_id: int, request: Request, session: Session = Depends(get_session)
-):
-    maybe_user = _require_user_or_redirect(request, session)
-    if isinstance(maybe_user, RedirectResponse):
-        return maybe_user
-    plan = session.get(LocationPlan, plan_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Location plan not found.")
-    all_plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
-    return _render(
-        request,
-        "location_plans.html",
-        {"user": maybe_user, "plans": all_plans, "edit_plan": plan, "message": None},
-    )
 
 
 @app.post("/location-plans/{plan_id}/update")
@@ -3456,6 +3437,7 @@ async def benchmark_create(
         item_category=str(form.get("item_category", "food")),
         non_food_category=non_food_category,
         qty_per_day=qty,
+        qty_period=str(form.get("qty_period") or "day"),
         uom=str(form.get("uom", "unit")),
         scales_with_participants="scales_with_participants" in form,
         notes=str(form.get("notes", "")).strip() or None,
@@ -3483,7 +3465,7 @@ async def benchmark_update(
     data = await request.json()
     for field in (
         "name", "name_pt", "item_category", "non_food_category",
-        "qty_per_day", "uom", "scales_with_participants",
+        "qty_per_day", "qty_period", "uom", "scales_with_participants",
         "notes", "notes_pt", "sort_order", "is_active",
     ):
         if field in data:
