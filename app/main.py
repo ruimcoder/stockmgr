@@ -3437,6 +3437,7 @@ async def benchmark_create(
         item_category=str(form.get("item_category", "food")),
         non_food_category=non_food_category,
         qty_per_day=qty,
+        qty_period=str(form.get("qty_period") or "day"),
         uom=str(form.get("uom", "unit")),
         scales_with_participants="scales_with_participants" in form,
         notes=str(form.get("notes", "")).strip() or None,
@@ -3464,7 +3465,7 @@ async def benchmark_update(
     data = await request.json()
     for field in (
         "name", "name_pt", "item_category", "non_food_category",
-        "qty_per_day", "uom", "scales_with_participants",
+        "qty_per_day", "qty_period", "uom", "scales_with_participants",
         "notes", "notes_pt", "sort_order", "is_active",
     ):
         if field in data:

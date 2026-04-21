@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 SUPPORTED_LANGUAGES = {"en", "pt"}
 
@@ -366,6 +366,11 @@ TRANSLATIONS = {
         "benchmark.sort_order": "Sort Order",
         "benchmark.is_active": "Active",
         "benchmark.no_items": "No benchmark items configured.",
+        "benchmark.qty_period": "Period",
+        "benchmark.period_day": "Per Day",
+        "benchmark.period_week": "Per Week",
+        "benchmark.period_month": "Per Month",
+        "benchmark.period_fixed": "Fixed (count)",
         "common.all": "All",
         "location_benchmark.title": "Benchmark Configuration",
         "location_benchmark.configure": "Configure Benchmark",
@@ -761,6 +766,11 @@ TRANSLATIONS = {
         "benchmark.sort_order": "Ordem",
         "benchmark.is_active": "Ativo",
         "benchmark.no_items": "Sem itens de referência configurados.",
+        "benchmark.qty_period": "Período",
+        "benchmark.period_day": "Por Dia",
+        "benchmark.period_week": "Por Semana",
+        "benchmark.period_month": "Por Mês",
+        "benchmark.period_fixed": "Fixo (unidade)",
         "common.all": "Todos",
         "location_benchmark.title": "Configuração de Referência",
         "location_benchmark.configure": "Configurar Referência",
