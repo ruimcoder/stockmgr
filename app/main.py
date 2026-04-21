@@ -29,11 +29,12 @@ from sqlmodel import Session, or_, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.backup_utils import create_backup, list_backups, restore_backup
+from app.gap_utils import get_target_qty
 from app.config import get_settings
 from app.db import _sqlite_path_from_url, engine, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
-from app.models import BenchmarkItem, LocationPlan, StockItem, StockMovement, User
+from app.models import BenchmarkItem, LocationBenchmark, LocationPlan, StockItem, StockMovement, User
 from app.non_food_categories import ITEM_CATEGORIES, NON_FOOD_CATEGORIES
 from app.uom_constants import UOM_OPTIONS
 from app.pdf_utils import generate_table_pdf
@@ -1407,6 +1408,94 @@ async def location_plans_delete(
         session.delete(plan)
         session.commit()
     return RedirectResponse("/location-plans?m=location-plan-deleted", status_code=303)
+
+
+# ── Location benchmark configuration ────────────────────────────────────────
+
+
+@app.get("/location-plans/{location}/benchmark")
+def location_benchmark_config(
+    location: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    plan = session.exec(select(LocationPlan).where(LocationPlan.location == location)).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Location not found")
+    items = session.exec(
+        select(BenchmarkItem).where(BenchmarkItem.is_active == True).order_by(BenchmarkItem.sort_order, BenchmarkItem.name)  # noqa: E712
+    ).all()
+    lb_rows = session.exec(
+        select(LocationBenchmark).where(LocationBenchmark.location == location)
+    ).all()
+    lb_map = {lb.benchmark_item_id: lb for lb in lb_rows}
+    rows = []
+    for item in items:
+        lb = lb_map.get(item.id)
+        target = get_target_qty(item, lb, plan.participants, plan.stock_duration_days)
+        rows.append({"item": item, "lb": lb, "target_qty": round(target, 3)})
+    return _render(request, "location_benchmark.html", {
+        "user": maybe_user,
+        "plan": plan,
+        "rows": rows,
+        "message": _fetch_message(request),
+    })
+
+
+@app.patch("/api/location-benchmark/{lb_id}/toggle")
+async def api_toggle_location_benchmark(
+    lb_id: int,
+    request: Request,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    lb = session.get(LocationBenchmark, lb_id)
+    if not lb:
+        raise HTTPException(status_code=404)
+    lb.is_enabled = not lb.is_enabled
+    lb.updated_at = datetime.now(UTC)
+    session.add(lb)
+    session.commit()
+    return {"id": lb_id, "is_enabled": lb.is_enabled}
+
+
+@app.patch("/api/location-benchmark/{lb_id}/override")
+async def api_set_location_benchmark_override(
+    lb_id: int,
+    request: Request,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    body = await request.json()
+    qty = body.get("qty")
+    lb = session.get(LocationBenchmark, lb_id)
+    if not lb:
+        raise HTTPException(status_code=404)
+    lb.qty_override = float(qty) if qty is not None else None
+    lb.updated_at = datetime.now(UTC)
+    session.add(lb)
+    session.commit()
+    return {"id": lb_id, "qty_override": lb.qty_override}
+
+
+@app.post("/api/location-benchmark/{location}/reset-all")
+async def api_reset_location_benchmark(
+    location: str,
+    request: Request,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    rows = session.exec(select(LocationBenchmark).where(LocationBenchmark.location == location)).all()
+    for row in rows:
+        row.qty_override = None
+        row.is_enabled = True
+        row.updated_at = datetime.now(UTC)
+        session.add(row)
+    session.commit()
+    return {"reset": len(rows)}
 
 
 @app.get("/device-check")
