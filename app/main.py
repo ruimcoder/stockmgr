@@ -33,7 +33,7 @@ from app.config import get_settings
 from app.db import _sqlite_path_from_url, engine, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
-from app.models import LocationPlan, StockItem, StockMovement, User
+from app.models import BenchmarkItem, LocationPlan, StockItem, StockMovement, User
 from app.non_food_categories import ITEM_CATEGORIES, NON_FOOD_CATEGORIES
 from app.uom_constants import UOM_OPTIONS
 from app.pdf_utils import generate_table_pdf
@@ -3296,6 +3296,131 @@ async def api_admin_list_backups(current_user: User = Depends(_require_api_user)
         raise HTTPException(403, "Admin only")
     db_file = _get_db_file()
     return {"backups": list_backups(db_file)}
+
+
+# ---------------------------------------------------------------------------
+# Benchmark management routes (#127)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/benchmark")
+def benchmark_list(
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    items = session.exec(
+        select(BenchmarkItem).order_by(BenchmarkItem.sort_order, BenchmarkItem.name)
+    ).all()
+    return _render(
+        request,
+        "benchmark.html",
+        {"user": admin, "benchmark_items": items, "message": _fetch_message(request)},
+    )
+
+
+@app.post("/benchmark")
+async def benchmark_create(
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
+    session: Session = Depends(get_session),
+):
+    form = await request.form()
+    try:
+        qty = float(form.get("qty_per_day", 0))
+        sort_order = int(form.get("sort_order", 0))
+    except (ValueError, TypeError):
+        return _render(
+            request,
+            "benchmark.html",
+            {
+                "user": admin,
+                "benchmark_items": session.exec(
+                    select(BenchmarkItem).order_by(BenchmarkItem.sort_order, BenchmarkItem.name)
+                ).all(),
+                "message": "Invalid numeric values.",
+            },
+            status_code=422,
+        )
+    non_food_category = form.get("non_food_category") or None
+    if non_food_category == "":
+        non_food_category = None
+    item = BenchmarkItem(
+        name=str(form.get("name", "")).strip(),
+        name_pt=str(form.get("name_pt", "")).strip(),
+        item_category=str(form.get("item_category", "food")),
+        non_food_category=non_food_category,
+        qty_per_day=qty,
+        uom=str(form.get("uom", "unit")),
+        scales_with_participants="scales_with_participants" in form,
+        notes=str(form.get("notes", "")).strip() or None,
+        notes_pt=str(form.get("notes_pt", "")).strip() or None,
+        sort_order=sort_order,
+        is_active="is_active" in form,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    session.add(item)
+    session.commit()
+    return RedirectResponse("/benchmark?m=saved", status_code=303)
+
+
+@app.post("/benchmark/{item_id}/update")
+async def benchmark_update(
+    item_id: int,
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    item = session.get(BenchmarkItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Benchmark item not found.")
+    data = await request.json()
+    for field in (
+        "name", "name_pt", "item_category", "non_food_category",
+        "qty_per_day", "uom", "scales_with_participants",
+        "notes", "notes_pt", "sort_order", "is_active",
+    ):
+        if field in data:
+            setattr(item, field, data[field])
+    item.updated_at = datetime.now(UTC)
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return {"id": item.id, "name": item.name, "is_active": item.is_active}
+
+
+@app.delete("/benchmark/{item_id}")
+def benchmark_delete(
+    item_id: int,
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    item = session.get(BenchmarkItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Benchmark item not found.")
+    session.delete(item)
+    session.commit()
+    return JSONResponse({"deleted": True}, status_code=200)
+
+
+@app.post("/benchmark/{item_id}/toggle")
+def benchmark_toggle(
+    item_id: int,
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    item = session.get(BenchmarkItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Benchmark item not found.")
+    item.is_active = not item.is_active
+    item.updated_at = datetime.now(UTC)
+    session.add(item)
+    session.commit()
+    return {"id": item.id, "is_active": item.is_active}
 
 
 @app.exception_handler(HTTPException)

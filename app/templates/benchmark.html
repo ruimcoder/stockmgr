@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/admin/config">{{ t("nav.settings") }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ t("benchmark.title") }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">{{ t("benchmark.title") }}</h1>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addItemModal">
+    <i class="bi bi-plus-lg"></i> {{ t("benchmark.add_item") }}
+  </button>
+</div>
+
+{% if message == "saved" %}
+<div class="alert alert-success py-2">{{ t("common.save_changes") }}: OK</div>
+{% elif message %}
+<div class="alert alert-info py-2">{{ message }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0" data-enhanced-table>
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>{{ t("benchmark.name_en") }}</th>
+          <th>{{ t("benchmark.name_pt") }}</th>
+          <th>{{ t("benchmark.category") }}</th>
+          <th data-sortable="false" data-filterable="false">Sub-cat</th>
+          <th>{{ t("benchmark.qty_per_day") }}</th>
+          <th>{{ t("benchmark.uom") }}</th>
+          <th>{{ t("benchmark.scales") }}</th>
+          <th>{{ t("benchmark.is_active") }}</th>
+          <th data-sortable="false" data-filterable="false">{{ t("admin.actions") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in benchmark_items %}
+        <tr id="row-{{ item.id }}">
+          <td>{{ item.sort_order }}</td>
+          <td>{{ item.name }}</td>
+          <td>{{ item.name_pt }}</td>
+          <td>{{ t("category." ~ item.item_category) }}</td>
+          <td>{{ item.non_food_category or "" }}</td>
+          <td>{{ item.qty_per_day }}</td>
+          <td>{{ item.uom }}</td>
+          <td>
+            {% if item.scales_with_participants %}
+              <span class="badge bg-success">{{ t("benchmark.scales_yes") }}</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ t("benchmark.scales_no") }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <button type="button"
+              class="btn btn-sm {% if item.is_active %}btn-success{% else %}btn-outline-secondary{% endif %} toggle-active-btn"
+              data-id="{{ item.id }}"
+              data-active="{{ 'true' if item.is_active else 'false' }}"
+              title="{{ t('benchmark.is_active') }}">
+              {% if item.is_active %}<i class="bi bi-check-circle-fill"></i>{% else %}<span class="text-muted">{{ t("benchmark.inactive") }}</span>{% endif %}
+            </button>
+          </td>
+          <td class="text-nowrap">
+            <button class="btn btn-sm btn-outline-secondary edit-btn"
+              data-id="{{ item.id }}"
+              data-name="{{ item.name }}"
+              data-name-pt="{{ item.name_pt }}"
+              data-item-category="{{ item.item_category }}"
+              data-non-food-category="{{ item.non_food_category or '' }}"
+              data-qty-per-day="{{ item.qty_per_day }}"
+              data-uom="{{ item.uom }}"
+              data-scales="{{ 'true' if item.scales_with_participants else 'false' }}"
+              data-notes="{{ item.notes or '' }}"
+              data-notes-pt="{{ item.notes_pt or '' }}"
+              data-sort-order="{{ item.sort_order }}"
+              data-is-active="{{ 'true' if item.is_active else 'false' }}"
+              title="{{ t('benchmark.edit') }}">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger delete-btn"
+              data-id="{{ item.id }}"
+              data-name="{{ item.name }}"
+              title="{{ t('benchmark.delete') }}">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-3">—</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Item Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="/benchmark">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
+        <div class="modal-header">
+          <h5 class="modal-title" id="addItemModalLabel">{{ t("benchmark.add_item") }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ t("benchmark.name_en") }}</label>
+              <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ t("benchmark.name_pt") }}</label>
+              <input type="text" name="name_pt" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ t("form.item_category") }}</label>
+              <select name="item_category" class="form-select">
+                {% for cat in item_categories %}
+                <option value="{{ cat.key }}">{{ t("category." ~ cat.key) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ t("form.non_food_category") }}</label>
+              <select name="non_food_category" class="form-select">
+                <option value="">—</option>
+                {% for nfc in non_food_categories %}
+                <option value="{{ nfc.key }}">{{ t("nfc." ~ nfc.key) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ t("benchmark.qty_per_day") }}</label>
+              <input type="number" step="0.001" min="0" name="qty_per_day" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ t("benchmark.uom") }}</label>
+              <select name="uom" class="form-select">
+                {% for uom in uom_options %}
+                <option value="{{ uom.key }}">{{ uom.key }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">{{ t("benchmark.sort_order") }}</label>
+              <input type="number" name="sort_order" class="form-control" value="0">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="scales_with_participants" id="add-scales" checked>
+                <label class="form-check-label" for="add-scales">{{ t("benchmark.scales") }}</label>
+              </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="is_active" id="add-is-active" checked>
+                <label class="form-check-label" for="add-is-active">{{ t("benchmark.is_active") }}</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ t("benchmark.notes") }} (EN)</label>
+              <textarea name="notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ t("benchmark.notes") }} (PT)</label>
+              <textarea name="notes_pt" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t("common.cancel") }}</button>
+          <button type="submit" class="btn btn-primary">{{ t("common.create_item") }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Item Modal -->
+<div class="modal fade" id="editItemModal" tabindex="-1" aria-labelledby="editItemModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editItemModalLabel">{{ t("benchmark.edit") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">{{ t("benchmark.name_en") }}</label>
+            <input type="text" class="form-control" id="edit-name" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ t("benchmark.name_pt") }}</label>
+            <input type="text" class="form-control" id="edit-name-pt" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ t("form.item_category") }}</label>
+            <select class="form-select" id="edit-item-category">
+              {% for cat in item_categories %}
+              <option value="{{ cat.key }}">{{ t("category." ~ cat.key) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ t("form.non_food_category") }}</label>
+            <select class="form-select" id="edit-non-food-category">
+              <option value="">—</option>
+              {% for nfc in non_food_categories %}
+              <option value="{{ nfc.key }}">{{ t("nfc." ~ nfc.key) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ t("benchmark.qty_per_day") }}</label>
+            <input type="number" step="0.001" min="0" class="form-control" id="edit-qty-per-day" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ t("benchmark.uom") }}</label>
+            <select class="form-select" id="edit-uom">
+              {% for uom in uom_options %}
+              <option value="{{ uom.key }}">{{ uom.key }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ t("benchmark.sort_order") }}</label>
+            <input type="number" class="form-control" id="edit-sort-order" value="0">
+          </div>
+          <div class="col-md-4">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="edit-scales-with-participants">
+              <label class="form-check-label" for="edit-scales-with-participants">{{ t("benchmark.scales") }}</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="edit-is-active">
+              <label class="form-check-label" for="edit-is-active">{{ t("benchmark.is_active") }}</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ t("benchmark.notes") }} (EN)</label>
+            <textarea class="form-control" id="edit-notes" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ t("benchmark.notes") }} (PT)</label>
+            <textarea class="form-control" id="edit-notes-pt" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t("common.cancel") }}</button>
+        <button type="button" class="btn btn-primary" id="edit-save-btn">{{ t("common.save_changes") }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const confirmDeleteMsg = {{ t("benchmark.confirm_delete") | tojson }};
+  let editingId = null;
+
+  // Delete
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      if (!confirm(confirmDeleteMsg)) return;
+      const id = this.dataset.id;
+      const resp = await fetch(`/benchmark/${id}`, { method: 'DELETE' });
+      if (resp.ok) {
+        document.getElementById(`row-${id}`)?.remove();
+      } else {
+        alert('Delete failed');
+      }
+    });
+  });
+
+  // Toggle active
+  document.querySelectorAll('.toggle-active-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const id = this.dataset.id;
+      const resp = await fetch(`/benchmark/${id}/toggle`, { method: 'POST' });
+      if (resp.ok) {
+        location.reload();
+      } else {
+        alert('Toggle failed');
+      }
+    });
+  });
+
+  // Edit modal open
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      editingId = this.dataset.id;
+      document.getElementById('edit-name').value = this.dataset.name;
+      document.getElementById('edit-name-pt').value = this.dataset.namePt;
+      document.getElementById('edit-item-category').value = this.dataset.itemCategory;
+      document.getElementById('edit-non-food-category').value = this.dataset.nonFoodCategory;
+      document.getElementById('edit-qty-per-day').value = this.dataset.qtyPerDay;
+      document.getElementById('edit-uom').value = this.dataset.uom;
+      document.getElementById('edit-sort-order').value = this.dataset.sortOrder;
+      document.getElementById('edit-scales-with-participants').checked = this.dataset.scales === 'true';
+      document.getElementById('edit-is-active').checked = this.dataset.isActive === 'true';
+      document.getElementById('edit-notes').value = this.dataset.notes;
+      document.getElementById('edit-notes-pt').value = this.dataset.notesPt;
+      const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editItemModal'));
+      modal.show();
+    });
+  });
+
+  // Edit save
+  document.getElementById('edit-save-btn').addEventListener('click', async function () {
+    if (!editingId) return;
+    const body = {
+      name: document.getElementById('edit-name').value,
+      name_pt: document.getElementById('edit-name-pt').value,
+      item_category: document.getElementById('edit-item-category').value,
+      non_food_category: document.getElementById('edit-non-food-category').value || null,
+      qty_per_day: parseFloat(document.getElementById('edit-qty-per-day').value),
+      uom: document.getElementById('edit-uom').value,
+      sort_order: parseInt(document.getElementById('edit-sort-order').value, 10),
+      scales_with_participants: document.getElementById('edit-scales-with-participants').checked,
+      is_active: document.getElementById('edit-is-active').checked,
+      notes: document.getElementById('edit-notes').value || null,
+      notes_pt: document.getElementById('edit-notes-pt').value || null,
+    };
+    const resp = await fetch(`/benchmark/${editingId}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      location.reload();
+    } else {
+      alert('Save failed');
+    }
+  });
+})();
+</script>
+{% endblock %}
