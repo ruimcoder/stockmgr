@@ -2,6 +2,12 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.5] - 2026-04-22
+### Fixed
+- Location plan edit now opens in a Bootstrap modal instead of re-rendering the page with an inline form (#155)
+- Removed GET `/location-plans/{plan_id}/edit` route (superseded by client-side modal)
+- Added "New Location Plan" button to page header to open modal in create mode
+
 ## [1.4.4] - 2026-04-21
 ### Security
 - Fixed path traversal vulnerability in restore_backup(): filename is now stripped of directory components and validated to remain inside the backup directory (CWE-22)

@@ -1,6 +1,6 @@
 [project]
 name = "stockmgr"
-version = "1.4.4"
+version = "1.4.5"
 description = "SHTF stock inventory management web application"
 requires-python = ">=3.12"
 
