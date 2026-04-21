@@ -3576,10 +3576,12 @@ def gap_analysis_page(
 @app.get("/api/gap-analysis")
 async def api_gap_analysis(
     request: Request,
-    location: str,
+    location: str | None = None,
     user=Depends(_require_api_user),
     session: Session = Depends(get_session),
 ):
+    if not location:
+        raise HTTPException(status_code=400, detail="location parameter is required")
     plan = session.exec(select(LocationPlan).where(LocationPlan.location == location)).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -3594,7 +3596,7 @@ async def api_gap_analysis(
         select(StockItem).where(StockItem.storage_location == location)
     ).all()
     rows = compute_gap_rows(b_items, lb_map, stock_items, plan.participants, plan.stock_duration_days)
-    return [
+    items = [
         {
             "benchmark_item_id": r["benchmark_item"].id,
             "name": r["benchmark_item"].name,
@@ -3602,7 +3604,9 @@ async def api_gap_analysis(
             "item_category": r["benchmark_item"].item_category,
             "non_food_category": r["benchmark_item"].non_food_category,
             "uom": r["benchmark_item"].uom,
-            "target_qty": r["target_qty"],
+            "scales_with_participants": r["benchmark_item"].scales_with_participants,
+            "qty_per_day": r["benchmark_item"].qty_per_day,
+            "target_stock": r["target_qty"],
             "current_stock": r["current_stock"],
             "gap": r["gap"],
             "coverage_pct": r["coverage_pct"],
@@ -3611,6 +3615,21 @@ async def api_gap_analysis(
         }
         for r in rows
     ]
+    summary = {"total_items": len(items), "fully_stocked": 0, "partially_stocked": 0, "missing": 0}
+    for item in items:
+        if item["status"] == "ok":
+            summary["fully_stocked"] += 1
+        elif item["status"] == "partial":
+            summary["partially_stocked"] += 1
+        else:
+            summary["missing"] += 1
+    return {
+        "location": plan.location,
+        "participants": plan.participants,
+        "stock_duration_days": plan.stock_duration_days,
+        "summary": summary,
+        "items": items,
+    }
 
 
 @app.exception_handler(HTTPException)
