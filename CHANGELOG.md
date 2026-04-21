@@ -2,6 +2,9 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.4] - 2026-04-21
+### Security
+- Fixed path traversal vulnerability in restore_backup(): filename is now stripped of directory components and validated to remain inside the backup directory (CWE-22)
 ## [1.4.3] - 2026-04-21
 ### Changed
 - GET /api/gap-analysis now returns a structured envelope with location metadata, summary counts, and enriched items (scales_with_participants, qty_per_day, target_stock) (#136)
@@ -269,4 +272,5 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 - Excel API for external datasource read/write
 - User registration with admin approval workflow
 - Automated CI (lint + tests + Docker build) and Azure deployment pipeline
+
 
