@@ -2,6 +2,17 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-04-21
+### Added
+- Stock Gap Analysis dashboard at `/gap-analysis` (#130)
+- `compute_gap_rows()` in `app/gap_utils.py`: calculates per-benchmark-item coverage, gap, days covered and status ("ok"/"partial"/"missing") for a location
+- GET `/gap-analysis` — authenticated page with location selector, summary cards and sortable coverage table
+- GET `/api/gap-analysis?location=<loc>` — JSON API endpoint returning gap rows for mobile/external consumers
+- `app/templates/gap_analysis.html`: Bootstrap table with progress bars, colour-coded rows and summary cards
+- Nav link "Gap Analysis" added to main navbar
+- i18n keys: `gap.*`, `nav.gap_analysis` (EN + PT)
+- Tests in `tests/test_gap_analysis.py` covering coverage calculation, disabled exclusion, missing stock, sort order, page render
+
 ## [1.3.9] - 2026-04-21
 ### Added
 - Per-location benchmark configuration UI at `/location-plans/{location}/benchmark` (#129)
