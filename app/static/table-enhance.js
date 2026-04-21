@@ -40,13 +40,15 @@
       const filterable = Array.from(headerRow.cells).map(
         (th) => th.dataset.filterable !== "false"
       );
+      const LS_KEY = "table-page-size";
+      const savedPageSize = Number(localStorage.getItem(LS_KEY)) || 10;
       const state = {
         globalFilter: "",
         columnFilters: new Array(columnCount).fill(""),
         sortIndex: null,
         sortDir: 1,
         page: 1,
-        pageSize: 10,
+        pageSize: savedPageSize,
       };
 
       // Insert controls outside .table-responsive if present, otherwise before table
@@ -62,15 +64,24 @@
       searchInput.placeholder = "Search";
       const pageSizeSelect = document.createElement("select");
       pageSizeSelect.className = "form-select form-select-sm";
-      pageSizeSelect.style.maxWidth = "100px";
-      [10, 25, 50].forEach((size) => {
+      pageSizeSelect.style.maxWidth = "80px";
+      [10, 25, 50, 100, 250].forEach((size) => {
         const option = document.createElement("option");
         option.value = String(size);
         option.textContent = String(size);
+        if (size === state.pageSize) option.selected = true;
         pageSizeSelect.appendChild(option);
       });
+      const pageSizeLabel = document.createElement("label");
+      pageSizeLabel.className = "input-group-text small";
+      pageSizeLabel.textContent = "Per page:";
+      const pageSizeGroup = document.createElement("div");
+      pageSizeGroup.className = "input-group input-group-sm";
+      pageSizeGroup.style.maxWidth = "160px";
+      pageSizeGroup.appendChild(pageSizeLabel);
+      pageSizeGroup.appendChild(pageSizeSelect);
       controls.appendChild(searchInput);
-      controls.appendChild(pageSizeSelect);
+      controls.appendChild(pageSizeGroup);
       const printBtn = document.createElement("button");
       printBtn.type = "button";
       printBtn.className = "btn btn-outline-secondary btn-sm d-print-none ms-auto";
@@ -206,7 +217,8 @@
         tbody.replaceChildren(...filtered.slice(start, start + state.pageSize));
         prevButton.disabled = state.page <= 1;
         nextButton.disabled = state.page >= totalPages;
-        pageInfo.textContent = "Page " + state.page + " / " + totalPages;
+        pageInfo.textContent =
+          "Page " + state.page + " / " + totalPages + " (" + filtered.length + " records)";
         updateSortIndicators();
       };
 
@@ -217,6 +229,7 @@
       });
       pageSizeSelect.addEventListener("change", () => {
         state.pageSize = Number(pageSizeSelect.value);
+        localStorage.setItem(LS_KEY, pageSizeSelect.value);
         state.page = 1;
         render();
       });
