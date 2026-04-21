@@ -29,7 +29,7 @@ from sqlmodel import Session, or_, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.backup_utils import create_backup, list_backups, restore_backup
-from app.gap_utils import get_target_qty
+from app.gap_utils import compute_gap_rows, get_target_qty
 from app.config import get_settings
 from app.db import _sqlite_path_from_url, engine, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
@@ -3515,6 +3515,92 @@ def benchmark_toggle(
     session.add(item)
     session.commit()
     return {"id": item.id, "is_active": item.is_active}
+
+
+@app.get("/gap-analysis")
+def gap_analysis_page(
+    request: Request,
+    location: str | None = None,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
+    selected_location = location or (plans[0].location if plans else None)
+    plan = next((p for p in plans if p.location == selected_location), None)
+
+    rows = []
+    summary = {"total": 0, "ok": 0, "partial": 0, "missing": 0}
+
+    if plan:
+        b_items = session.exec(
+            select(BenchmarkItem).where(BenchmarkItem.is_active == True)  # noqa: E712
+            .order_by(BenchmarkItem.sort_order, BenchmarkItem.name)
+        ).all()
+        lb_rows = session.exec(
+            select(LocationBenchmark).where(LocationBenchmark.location == plan.location)
+        ).all()
+        lb_map = {lb.benchmark_item_id: lb for lb in lb_rows}
+        stock_items = session.exec(
+            select(StockItem).where(StockItem.storage_location == plan.location)
+        ).all()
+
+        rows = compute_gap_rows(b_items, lb_map, stock_items, plan.participants, plan.stock_duration_days)
+        summary["total"] = len(rows)
+        for r in rows:
+            summary[r["status"]] += 1
+
+    return _render(request, "gap_analysis.html", {
+        "user": user,
+        "plans": plans,
+        "plan": plan,
+        "selected_location": selected_location,
+        "rows": rows,
+        "summary": summary,
+    })
+
+
+@app.get("/api/gap-analysis")
+async def api_gap_analysis(
+    request: Request,
+    location: str,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    plan = session.exec(select(LocationPlan).where(LocationPlan.location == location)).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Location not found")
+    b_items = session.exec(
+        select(BenchmarkItem).where(BenchmarkItem.is_active == True)  # noqa: E712
+    ).all()
+    lb_rows = session.exec(
+        select(LocationBenchmark).where(LocationBenchmark.location == location)
+    ).all()
+    lb_map = {lb.benchmark_item_id: lb for lb in lb_rows}
+    stock_items = session.exec(
+        select(StockItem).where(StockItem.storage_location == location)
+    ).all()
+    rows = compute_gap_rows(b_items, lb_map, stock_items, plan.participants, plan.stock_duration_days)
+    return [
+        {
+            "benchmark_item_id": r["benchmark_item"].id,
+            "name": r["benchmark_item"].name,
+            "name_pt": r["benchmark_item"].name_pt,
+            "item_category": r["benchmark_item"].item_category,
+            "non_food_category": r["benchmark_item"].non_food_category,
+            "uom": r["benchmark_item"].uom,
+            "target_qty": r["target_qty"],
+            "current_stock": r["current_stock"],
+            "gap": r["gap"],
+            "coverage_pct": r["coverage_pct"],
+            "days_covered": r["days_covered"],
+            "status": r["status"],
+        }
+        for r in rows
+    ]
 
 
 @app.exception_handler(HTTPException)
