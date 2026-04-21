@@ -2,6 +2,18 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.2] - 2026-04-22
+### Added
+- Shopping list now includes non-food items with unmet `target_unidoses_location` (#132)
+- `item_category` and `non_food_category` added to shopping list query grouping (#132)
+- Category badge (medicine, energy, tools, hygiene, seeds, communication, security) shown for non-food items in shopping list (#132)
+- `data-category` attribute on shopping list `<tr>` rows for client-side filtering (#132)
+- Client-side category filter (All / Food / Non-food) on shopping list page (#132)
+- `data-category` attribute on renewals `<tr>` rows (#133)
+- Category badge for non-food items in renewals list (#133)
+- Client-side category filter on renewals page (#133)
+- i18n keys: `shopping.non_food_section`, `shopping.food_section`, `shopping.category`, `renewals.category_filter` (EN + PT)
+
 ## [1.4.1] - 2026-04-22
 ### Added
 - `data-category` and `data-nfc` attributes on inventory list `<tr>` rows (#131)

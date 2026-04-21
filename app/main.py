@@ -1229,17 +1229,25 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
             StockItem.item_type,
             StockItem.storage_location,
             StockItem.food_group,
+            StockItem.item_category,
+            StockItem.non_food_category,
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
             func.max(StockItem.unidose_per_pack).label("unidose_per_pack"),
         )
-        .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
+        .group_by(
+            StockItem.name,
+            StockItem.item_type,
+            StockItem.storage_location,
+            StockItem.item_category,
+            StockItem.non_food_category,
+        )
         .order_by(StockItem.name, StockItem.storage_location)
     ).all()
 
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for row in location_rows:
-        name, item_type, location, food_group, total_u, target_u, per_pack = row
+        name, item_type, location, food_group, item_category, non_food_category, total_u, target_u, per_pack = row
         total_unidoses = int(total_u or 0)
         per_pack_value = max(1, int(per_pack or 1))
 
@@ -1264,6 +1272,8 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
                 "item_type": item_type,
                 "food_group": food_group,
                 "food_group_color": fg_obj.color if fg_obj else None,
+                "item_category": item_category or "food",
+                "non_food_category": non_food_category,
                 "total_quantity_to_buy": 0,
                 "distribution": [],
             }

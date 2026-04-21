@@ -174,6 +174,9 @@ TRANSLATIONS = {
         "shopping.total_to_buy": "Total quantity to buy",
         "shopping.distribution": "Location distribution",
         "shopping.no_items": "No items to buy.",
+        "shopping.non_food_section": "Non-food Items",
+        "shopping.food_section": "Food Items",
+        "shopping.category": "Category",
         "device.title": "Device Compatibility Check",
         "device.subtitle": (
             "Use this page on each phone/browser to validate camera and PWA support."
@@ -196,6 +199,7 @@ TRANSLATIONS = {
         "renewal.filter_location": "Location",
         "renewal.all_locations": "All locations",
         "renewal.print": "Print / PDF",
+        "renewals.category_filter": "Category",
         "product.batches": "Stock by location",
         "product.details_title": "Product details",
         "product.edit_details": "Edit product details",
@@ -563,6 +567,9 @@ TRANSLATIONS = {
         "shopping.total_to_buy": "Quantidade total a comprar",
         "shopping.distribution": "Distribuicao por localizacao",
         "shopping.no_items": "Sem itens para comprar.",
+        "shopping.non_food_section": "Itens Não-alimentares",
+        "shopping.food_section": "Itens Alimentares",
+        "shopping.category": "Categoria",
         "device.title": "Diagnostico de Compatibilidade do Dispositivo",
         "device.subtitle": (
             "Use esta pagina em cada telemovel/navegador para validar camera e suporte PWA."
@@ -585,6 +592,7 @@ TRANSLATIONS = {
         "renewal.filter_location": "Localização",
         "renewal.all_locations": "Todas as localizações",
         "renewal.print": "Imprimir / PDF",
+        "renewals.category_filter": "Categoria",
         "product.batches": "Stock por localização",
         "product.details_title": "Detalhes do produto",
         "product.edit_details": "Editar detalhes do produto",
