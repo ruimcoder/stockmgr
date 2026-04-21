@@ -31,6 +31,7 @@
           <th>{{ t("benchmark.category") }}</th>
           <th data-sortable="false" data-filterable="false">Sub-cat</th>
           <th>{{ t("benchmark.qty_per_day") }}</th>
+          <th>{{ t("benchmark.qty_period") }}</th>
           <th>{{ t("benchmark.uom") }}</th>
           <th>{{ t("benchmark.scales") }}</th>
           <th>{{ t("benchmark.is_active") }}</th>
@@ -39,13 +40,14 @@
       </thead>
       <tbody>
         {% for item in benchmark_items %}
-        <tr id="row-{{ item.id }}">
+        <tr id="row-{{ item.id }}"{% if not item.is_active %} class="table-row-inactive"{% endif %}>
           <td>{{ item.sort_order }}</td>
           <td>{{ item.name }}</td>
           <td>{{ item.name_pt }}</td>
           <td>{{ t("category." ~ item.item_category) }}</td>
           <td>{{ item.non_food_category or "" }}</td>
           <td>{{ item.qty_per_day }}</td>
+          <td>{{ t("benchmark.period_" ~ (item.qty_period or "day")) }}</td>
           <td>{{ item.uom }}</td>
           <td>
             {% if item.scales_with_participants %}
@@ -71,6 +73,7 @@
               data-item-category="{{ item.item_category }}"
               data-non-food-category="{{ item.non_food_category or '' }}"
               data-qty-per-day="{{ item.qty_per_day }}"
+              data-qty-period="{{ item.qty_period or 'day' }}"
               data-uom="{{ item.uom }}"
               data-scales="{{ 'true' if item.scales_with_participants else 'false' }}"
               data-notes="{{ item.notes or '' }}"
@@ -90,7 +93,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="10" class="text-center text-muted py-3">—</td>
+          <td colspan="11" class="text-center text-muted py-3">&mdash;</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -129,7 +132,7 @@
             <div class="col-md-4">
               <label class="form-label">{{ t("form.non_food_category") }}</label>
               <select name="non_food_category" class="form-select">
-                <option value="">—</option>
+                <option value="">&mdash;</option>
                 {% for nfc in non_food_categories %}
                 <option value="{{ nfc.key }}">{{ t("nfc." ~ nfc.key) }}</option>
                 {% endfor %}
@@ -138,6 +141,15 @@
             <div class="col-md-2">
               <label class="form-label">{{ t("benchmark.qty_per_day") }}</label>
               <input type="number" step="0.001" min="0" name="qty_per_day" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ t("benchmark.qty_period") }}</label>
+              <select name="qty_period" class="form-select">
+                <option value="day">{{ t("benchmark.period_day") }}</option>
+                <option value="week">{{ t("benchmark.period_week") }}</option>
+                <option value="month">{{ t("benchmark.period_month") }}</option>
+                <option value="fixed">{{ t("benchmark.period_fixed") }}</option>
+              </select>
             </div>
             <div class="col-md-2">
               <label class="form-label">{{ t("benchmark.uom") }}</label>
@@ -211,7 +223,7 @@
           <div class="col-md-4">
             <label class="form-label">{{ t("form.non_food_category") }}</label>
             <select class="form-select" id="edit-non-food-category">
-              <option value="">—</option>
+              <option value="">&mdash;</option>
               {% for nfc in non_food_categories %}
               <option value="{{ nfc.key }}">{{ t("nfc." ~ nfc.key) }}</option>
               {% endfor %}
@@ -220,6 +232,15 @@
           <div class="col-md-2">
             <label class="form-label">{{ t("benchmark.qty_per_day") }}</label>
             <input type="number" step="0.001" min="0" class="form-control" id="edit-qty-per-day" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ t("benchmark.qty_period") }}</label>
+            <select class="form-select" id="edit-qty-period">
+              <option value="day">{{ t("benchmark.period_day") }}</option>
+              <option value="week">{{ t("benchmark.period_week") }}</option>
+              <option value="month">{{ t("benchmark.period_month") }}</option>
+              <option value="fixed">{{ t("benchmark.period_fixed") }}</option>
+            </select>
           </div>
           <div class="col-md-2">
             <label class="form-label">{{ t("benchmark.uom") }}</label>
@@ -268,7 +289,6 @@
   const confirmDeleteMsg = {{ t("benchmark.confirm_delete") | tojson }};
   let editingId = null;
 
-  // Delete
   document.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async function () {
       if (!confirm(confirmDeleteMsg)) return;
@@ -282,12 +302,16 @@
     });
   });
 
-  // Toggle active
   document.querySelectorAll('.toggle-active-btn').forEach(btn => {
     btn.addEventListener('click', async function () {
       const id = this.dataset.id;
       const resp = await fetch(`/benchmark/${id}/toggle`, { method: 'POST' });
       if (resp.ok) {
+        const data = await resp.json();
+        const row = document.getElementById(`row-${id}`);
+        if (row) {
+          row.classList.toggle('table-row-inactive', !data.is_active);
+        }
         location.reload();
       } else {
         alert('Toggle failed');
@@ -295,7 +319,6 @@
     });
   });
 
-  // Edit modal open
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function () {
       editingId = this.dataset.id;
@@ -304,6 +327,7 @@
       document.getElementById('edit-item-category').value = this.dataset.itemCategory;
       document.getElementById('edit-non-food-category').value = this.dataset.nonFoodCategory;
       document.getElementById('edit-qty-per-day').value = this.dataset.qtyPerDay;
+      document.getElementById('edit-qty-period').value = this.dataset.qtyPeriod || 'day';
       document.getElementById('edit-uom').value = this.dataset.uom;
       document.getElementById('edit-sort-order').value = this.dataset.sortOrder;
       document.getElementById('edit-scales-with-participants').checked = this.dataset.scales === 'true';
@@ -315,7 +339,6 @@
     });
   });
 
-  // Edit save
   document.getElementById('edit-save-btn').addEventListener('click', async function () {
     if (!editingId) return;
     const body = {
@@ -324,6 +347,7 @@
       item_category: document.getElementById('edit-item-category').value,
       non_food_category: document.getElementById('edit-non-food-category').value || null,
       qty_per_day: parseFloat(document.getElementById('edit-qty-per-day').value),
+      qty_period: document.getElementById('edit-qty-period').value,
       uom: document.getElementById('edit-uom').value,
       sort_order: parseInt(document.getElementById('edit-sort-order').value, 10),
       scales_with_participants: document.getElementById('edit-scales-with-participants').checked,
@@ -344,4 +368,7 @@
   });
 })();
 </script>
+<style>
+.table-row-inactive { opacity: 0.45; }
+</style>
 {% endblock %}

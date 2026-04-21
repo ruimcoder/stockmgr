@@ -123,22 +123,20 @@ def test_location_plan_delete(client):
     assert deleted is None
 
 
-def test_location_plan_edit_page(client):
+def test_location_plan_edit_modal_data(client):
+    """Edit is now a client-side modal; list page must expose data attributes."""
     client.post(
         "/location-plans",
         data={"location": "Cave", "participants": "3", "stock_duration_days": "14"},
         follow_redirects=False,
     )
-    from app.db import engine
 
-    with Session(engine) as session:
-        plan = session.exec(
-            select(LocationPlan).where(LocationPlan.location == "Cave")
-        ).first()
-
-    resp = client.get(f"/location-plans/{plan.id}/edit")
+    resp = client.get("/location-plans")
     assert resp.status_code == 200
-    assert "Cave" in resp.text
+    assert 'data-location="Cave"' in resp.text
+    assert 'data-participants="3"' in resp.text
+    assert 'data-duration="14"' in resp.text
+    assert "edit-plan-btn" in resp.text
 
 
 def test_location_plan_update(client):
