@@ -30,7 +30,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.backup_utils import create_backup, list_backups, restore_backup
 from app.config import get_settings
-from app.db import _sqlite_path_from_url, get_session, init_db
+from app.db import _sqlite_path_from_url, engine, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
 from app.models import LocationPlan, StockItem, StockMovement, User
@@ -78,6 +78,11 @@ async def lifespan(_: FastAPI):
             db_file = (Path.cwd() / db_file).resolve()
         create_backup(db_file)
     init_db()
+    from app.benchmark_seed import seed_benchmark_if_empty  # noqa: PLC0415
+    with Session(engine) as session:
+        count = seed_benchmark_if_empty(session)
+        if count:
+            logger.info("Seeded %d benchmark items", count)
     yield
 
 
