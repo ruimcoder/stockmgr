@@ -338,6 +338,13 @@ TRANSLATIONS = {
         "uom.roll": "Rolls",
         "uom.m2": "Square metres (m2)",
         "uom.kWh": "Kilowatt-hours (kWh)",
+        "benchmark.title": "Recommended Stock List",
+        "benchmark.category": "Category",
+        "benchmark.qty_per_day": "Qty / Day",
+        "benchmark.scales": "Scales with participants",
+        "benchmark.notes": "Notes",
+        "benchmark.name": "Name",
+        "benchmark.uom": "Unit",
     },
     "pt": {
         "nav.add_item": "Adicionar Item",
@@ -680,6 +687,13 @@ TRANSLATIONS = {
         "uom.roll": "Rolos",
         "uom.m2": "Metros quadrados (m2)",
         "uom.kWh": "Quilowatt-hora (kWh)",
+        "benchmark.title": "Lista de Stock Recomendado",
+        "benchmark.category": "Categoria",
+        "benchmark.qty_per_day": "Qtd / Dia",
+        "benchmark.scales": "Escala com participantes",
+        "benchmark.notes": "Notas",
+        "benchmark.name": "Nome",
+        "benchmark.uom": "Unidade",
     },
 }
 

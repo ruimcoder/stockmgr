@@ -2,6 +2,12 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.6] - 2026-04-21
+### Added
+- `BenchmarkItem` SQLModel table with curated prepper seed data (35 items across food, medicine, hygiene, energy, seeds, tools, communication) (#126)
+- `app/benchmark_seed.py`: idempotent `seed_benchmark_if_empty()` called at startup via lifespan (#126)
+- i18n keys: `benchmark.title`, `benchmark.category`, `benchmark.qty_per_day`, `benchmark.scales`, `benchmark.notes`, `benchmark.name`, `benchmark.uom` (EN + PT) (#126)
+
 ## [1.3.5] - 2026-04-21
 ### Added
 - Item form: `item_category` radio (Food/Non-food) and `non_food_category` select, shown prominently after barcode section (#125)
