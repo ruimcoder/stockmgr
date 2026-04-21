@@ -46,20 +46,21 @@ def list_backups(db_path: Path) -> list[dict]:
 def restore_backup(db_path: Path, filename: str) -> bool:
     """Replace db_path with the named backup file. Returns True on success."""
     backup_dir = get_backup_dir(db_path)
-    # Sanitize: strip any directory components and resolve to prevent path traversal
-    safe_name = Path(filename).name
-    backup_file = (backup_dir / safe_name).resolve()
-    # Ensure the resolved path is still inside the backup directory
-    if backup_dir.resolve() not in backup_file.parents:
-        logging.getLogger(__name__).warning("Rejected restore path outside backup dir: %s", filename)
-        return False
-    if not backup_file.exists():
+    stem = db_path.stem
+    # Scan the backup directory and match by name — never construct a path from user input.
+    # This prevents path traversal: the path comes from filesystem enumeration, not from filename.
+    backup_file: Path | None = None
+    for candidate in backup_dir.glob(f"{stem}_backup_*.db"):
+        if candidate.name == filename:
+            backup_file = candidate
+            break
+    if backup_file is None:
         return False
     # Create a safety backup of current DB before restoring
     if db_path.exists():
         create_backup(db_path)
     shutil.copy2(backup_file, db_path)
-    logging.getLogger(__name__).info("DB restored from: %s", safe_name)
+    logging.getLogger(__name__).info("DB restored from: %s", backup_file.name)
     return True
 
 def _prune_old_backups(backup_dir: Path, stem: str) -> None:
