@@ -18,6 +18,14 @@
       {% endfor %}
     </select>
   </div>
+  <div class="col-md-3">
+    <label class="form-label">{{ t("renewals.category_filter") }}</label>
+    <select class="form-select" id="renewal-cat-filter" onchange="filterRenewalCategory(this.value)">
+      <option value="">{{ t("filter.all") }}</option>
+      <option value="food">{{ t("category.food") }}</option>
+      <option value="non_food">{{ t("category.non_food") }}</option>
+    </select>
+  </div>
   <div class="col-md-2 d-flex align-items-end">
     <button class="btn btn-primary w-100" type="submit">{{ t("renewal.apply") }}</button>
   </div>
@@ -39,11 +47,17 @@
       </thead>
       <tbody>
         {% for item in rows %}
-        <tr>
+        <tr data-category="{{ item.item_category or 'food' }}">
           <td>
             <a class="text-decoration-none item-link" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}" data-product-name="{{ item.name }}" data-product-image="{{ item.image_url or '' }}">{{ item.name }}</a>
             {% if item.nutriscore %}<span class="badge ms-1 nutriscore-badge" style="background:var(--bs-{% if item.nutriscore in ['a','b'] %}success{% elif item.nutriscore == 'c' %}warning{% elif item.nutriscore == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ item.nutriscore | upper }}">{{ item.nutriscore | upper }}</span>{% endif %}
             {% if item.food_group and food_groups_map.get(item.food_group) %}{% set fg = food_groups_map[item.food_group] %}<span class="d-inline-block rounded-circle border border-white ms-1" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}
+            {% if item.item_category == "non_food" %}
+              {% if item.non_food_category == "medicine" %}<span class="badge badge-medicine ms-1">💊</span>
+              {% elif item.non_food_category == "energy" %}<span class="badge badge-energy ms-1">⛽</span>
+              {% elif item.non_food_category == "seeds" %}<span class="badge badge-seeds ms-1">🌱</span>
+              {% else %}<span class="badge badge-other ms-1">📦</span>{% endif %}
+            {% endif %}
           </td>
           <td>{{ item.item_type }}</td>
           <td>{{ item.batch_code or "-" }}</td>
@@ -63,4 +77,12 @@
 </div>
 
 {% endblock %}
+
+<script>
+function filterRenewalCategory(val) {
+  document.querySelectorAll('[data-enhanced-table] tbody tr[data-category]').forEach(function(tr) {
+    tr.style.display = (!val || tr.dataset.category === val) ? '' : 'none';
+  });
+}
+</script>
 
