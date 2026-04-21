@@ -2,6 +2,17 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.9] - 2026-04-21
+### Added
+- Per-location benchmark configuration UI at `/location-plans/{location}/benchmark` (#129)
+- GET `/location-plans/{location}/benchmark` — view and configure benchmark items for a location
+- PATCH `/api/location-benchmark/{lb_id}/toggle` — toggle `is_enabled` for a benchmark row
+- PATCH `/api/location-benchmark/{lb_id}/override` — set or clear `qty_override` for a benchmark row
+- POST `/api/location-benchmark/{location}/reset-all` — reset all overrides and re-enable all items for a location
+- "Configure Benchmark" button in `location_plans.html` table actions column
+- i18n keys: `location_benchmark.*`, `benchmark.no_items`, `common.all` (EN + PT)
+- Tests in `tests/test_location_benchmark_ui.py` covering 404, render, toggle, override set/clear
+
 ## [1.3.8] - 2026-04-21
 ### Added
 - `LocationBenchmark` SQLModel table for per-location benchmark overrides (#128)
