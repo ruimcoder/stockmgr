@@ -2,6 +2,11 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.3] - 2026-04-21
+### Changed
+- GET /api/gap-analysis now returns a structured envelope with location metadata, summary counts, and enriched items (scales_with_participants, qty_per_day, target_stock) (#136)
+### Fixed
+- GET /api/gap-analysis returns 400 when location param is missing (previously raised unhandled validation error)
 ## [1.4.2] - 2026-04-22
 ### Added
 - Shopping list now includes non-food items with unmet `target_unidoses_location` (#132)
@@ -264,3 +269,4 @@ All notable changes to stockmgr are documented here. Versions follow [Semantic V
 - Excel API for external datasource read/write
 - User registration with admin approval workflow
 - Automated CI (lint + tests + Docker build) and Azure deployment pipeline
+
