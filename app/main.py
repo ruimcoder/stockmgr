@@ -83,6 +83,11 @@ async def lifespan(_: FastAPI):
         count = seed_benchmark_if_empty(session)
         if count:
             logger.info("Seeded %d benchmark items", count)
+    from app.benchmark_seed import sync_location_benchmarks  # noqa: PLC0415
+    with Session(engine) as session:
+        synced = sync_location_benchmarks(session)
+        if synced:
+            logger.info("Synced %d new location benchmark rows", synced)
     yield
 
 
