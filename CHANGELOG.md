@@ -2,11 +2,12 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.4.5] - 2026-04-22
-### Fixed
-- Location plan edit now opens in a Bootstrap modal instead of re-rendering the page with an inline form (#155)
-- Removed GET `/location-plans/{plan_id}/edit` route (superseded by client-side modal)
-- Added "New Location Plan" button to page header to open modal in create mode
+## [1.4.6] - 2026-04-22
+### Added
+- Configurable items-per-page dropdown with options [10, 25, 50, 100, 250] in all enhanced tables (#156)
+- "Per page:" label added to the page-size control via Bootstrap input-group (#156)
+- Page size selection persists across page loads via `localStorage` (key `table-page-size`) (#156)
+- Pagination info now shows total filtered record count, e.g. "Page 2 / 5 (42 records)" (#156)
 
 ## [1.4.4] - 2026-04-21
 ### Security
