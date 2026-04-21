@@ -4,6 +4,16 @@ from __future__ import annotations
 from app.models import BenchmarkItem, LocationBenchmark, StockItem
 
 
+def _effective_daily_qty(item, qty_per_day: float) -> float:
+    """Normalise qty_per_day to a daily equivalent based on item.qty_period."""
+    period = getattr(item, "qty_period", "day")
+    if period == "week":
+        return qty_per_day / 7.0
+    if period == "month":
+        return qty_per_day / 30.0
+    return qty_per_day  # "day" and "fixed" use qty as-is for daily rate
+
+
 def get_target_qty(
     benchmark_item: BenchmarkItem,
     location_override: LocationBenchmark | None,
@@ -15,17 +25,22 @@ def get_target_qty(
     Returns 0.0 if the item is disabled for the location.
     Uses qty_override if set, otherwise uses benchmark_item.qty_per_day.
     Scales by participants if benchmark_item.scales_with_participants is True.
+    For fixed items the quantity is absolute (no scaling by participants or duration).
     """
     if location_override is not None and not location_override.is_enabled:
         return 0.0
-    qty_per_day = (
+    raw_qty = (
         location_override.qty_override
         if (location_override and location_override.qty_override is not None)
         else benchmark_item.qty_per_day
     )
+    period = getattr(benchmark_item, "qty_period", "day")
+    if period == "fixed":
+        return raw_qty
+    daily_qty = _effective_daily_qty(benchmark_item, raw_qty)
     if benchmark_item.scales_with_participants:
-        return qty_per_day * participants * stock_duration_days
-    return qty_per_day * stock_duration_days
+        return daily_qty * participants * stock_duration_days
+    return daily_qty * stock_duration_days
 
 
 def compute_gap_rows(
@@ -39,11 +54,11 @@ def compute_gap_rows(
 
     Matching strategy:
     - non_food items: match StockItems where non_food_category == benchmark_item.non_food_category
-    - food items: match StockItems where item_category == 'food' OR item_category is None (legacy)
+    - food items: match StockItems where item_category == food OR item_category is None (legacy)
 
     Returns list of dicts with keys:
       benchmark_item, lb, target_qty, current_stock, gap, coverage_pct, days_covered, status
-    where status is "ok" (>=100%), "partial" (>=10%), or "missing" (<10%)
+    where status is ok (>=100%), partial (>=10%), or missing (<10%)
     """
     rows = []
     for b_item in benchmark_items:
@@ -52,7 +67,12 @@ def compute_gap_rows(
             continue  # skip disabled items
 
         target_qty = get_target_qty(b_item, lb, participants, stock_duration_days)
-        daily_need = get_target_qty(b_item, lb, participants, 1)
+        # For fixed items daily_need does not apply
+        period = getattr(b_item, "qty_period", "day")
+        if period == "fixed":
+            daily_need = 0.0
+        else:
+            daily_need = get_target_qty(b_item, lb, participants, 1)
 
         # Match stock items
         if b_item.item_category == "non_food" and b_item.non_food_category:
