@@ -2,6 +2,17 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.7] - 2026-04-21
+### Added
+- Benchmark management UI at `/benchmark` (admin only) (#127)
+- GET/POST `/benchmark` — list and create benchmark items with Bootstrap modal form
+- POST `/benchmark/{id}/update` — AJAX update item fields (JSON)
+- DELETE `/benchmark/{id}` — AJAX delete item
+- POST `/benchmark/{id}/toggle` — AJAX toggle `is_active`
+- `app/templates/benchmark.html`: table with `data-enhanced-table`, edit/delete/toggle actions
+- Benchmark tab in `/admin/config` settings page linking to `/benchmark`
+- i18n keys: `settings.benchmark.*`, `benchmark.add_item`, `benchmark.edit`, `benchmark.delete`, `benchmark.confirm_delete`, `benchmark.scales_yes`, `benchmark.scales_no`, `benchmark.inactive`, `benchmark.name_en`, `benchmark.name_pt`, `benchmark.sort_order`, `benchmark.is_active` (EN + PT)
+
 ## [1.3.6] - 2026-04-21
 ### Added
 - `BenchmarkItem` SQLModel table with curated prepper seed data (35 items across food, medicine, hygiene, energy, seeds, tools, communication) (#126)
