@@ -2,6 +2,14 @@
 
 All notable changes to stockmgr are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] - 2026-04-22
+### Added
+- `data-category` and `data-nfc` attributes on inventory list `<tr>` rows (#131)
+- Client-side category filter select in inventory list filter form (#131)
+- `filterByCategory()` inline JS function for client-side row filtering (#131)
+- CSS badge classes for non-food sub-categories (`badge-medicine`, `badge-energy`, etc.) in `site.css` (#131)
+- i18n keys: `filter.category`, `filter.food_only`, `filter.non_food_only` (EN + PT)
+
 ## [1.4.0] - 2026-04-21
 ### Added
 - Stock Gap Analysis dashboard at `/gap-analysis` (#130)
