@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/location-plans">{{ t("location_plan.title") }}</a></li>
+    <li class="breadcrumb-item"><strong>{{ plan.location }}</strong></li>
+    <li class="breadcrumb-item active">{{ t("location_benchmark.title") }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 mb-0">{{ plan.location }} — {{ t("location_benchmark.title") }}</h1>
+  <button class="btn btn-outline-warning btn-sm" id="btn-reset-all"
+          data-location="{{ plan.location | urlencode_path }}"
+          onclick="resetAll(this)">
+    {{ t("location_benchmark.apply_defaults") }}
+  </button>
+</div>
+
+<!-- Location summary -->
+<div class="row mb-3 g-2">
+  <div class="col-auto">
+    <span class="badge bg-secondary">{{ t("location_plan.participants") }}: {{ plan.participants }}</span>
+  </div>
+  <div class="col-auto">
+    <span class="badge bg-secondary">{{ t("location_plan.duration_days") }}: {{ plan.stock_duration_days }}</span>
+  </div>
+</div>
+
+{% if message %}
+<div class="alert alert-success py-2">{{ t("msg." ~ message) }}</div>
+{% endif %}
+
+<!-- Category filter -->
+<div class="mb-3">
+  <select class="form-select form-select-sm w-auto" id="cat-filter" onchange="filterByCategory(this.value)">
+    <option value="">{{ t("common.all") }}</option>
+    <option value="food">{{ t("category.food") }}</option>
+    <option value="non_food">{{ t("category.non_food") }}</option>
+  </select>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0" id="lb-table">
+      <thead>
+        <tr>
+          <th>{{ t("benchmark.name") }}</th>
+          <th>{{ t("benchmark.category") }}</th>
+          <th>{{ t("location_benchmark.global_qty") }}</th>
+          <th>{{ t("location_benchmark.override_qty") }}</th>
+          <th>{{ t("benchmark.uom") }}</th>
+          <th>{{ t("benchmark.scales") }}</th>
+          <th>{{ t("location_benchmark.enabled") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr data-category="{{ row.item.item_category }}" data-lb-id="{{ row.lb.id if row.lb else '' }}">
+          <td>
+            {% if lang == "pt" %}{{ row.item.name_pt }}{% else %}{{ row.item.name }}{% endif %}
+          </td>
+          <td>
+            <span class="badge bg-light text-dark">
+              {{ t("nfc." ~ row.item.non_food_category) if row.item.non_food_category else t("category.food") }}
+            </span>
+          </td>
+          <td>{{ row.item.qty_per_day }}</td>
+          <td>
+            {% if row.lb %}
+            <input type="number" class="form-control form-control-sm override-input"
+                   style="width:90px"
+                   value="{{ row.lb.qty_override if row.lb.qty_override is not none else '' }}"
+                   placeholder="—"
+                   step="0.001" min="0"
+                   data-lb-id="{{ row.lb.id }}"
+                   onchange="saveOverride(this)" />
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>{{ row.item.uom }}</td>
+          <td>
+            {% if row.item.scales_with_participants %}
+            <span class="text-success">✓</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.lb %}
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input toggle-enabled" type="checkbox"
+                     {% if row.lb.is_enabled %}checked{% endif %}
+                     data-lb-id="{{ row.lb.id }}"
+                     onchange="toggleEnabled(this)" />
+            </div>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">{{ t("benchmark.no_items") }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function toggleEnabled(checkbox) {
+  const lbId = checkbox.dataset.lbId;
+  fetch(`/api/location-benchmark/${lbId}/toggle`, {method: 'PATCH', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    .then(r => r.json())
+    .then(data => { checkbox.checked = data.is_enabled; })
+    .catch(() => { checkbox.checked = !checkbox.checked; });
+}
+
+function saveOverride(input) {
+  const lbId = input.dataset.lbId;
+  const qty = input.value === '' ? null : parseFloat(input.value);
+  fetch(`/api/location-benchmark/${lbId}/override`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({qty})
+  }).catch(() => {});
+}
+
+function resetAll(btn) {
+  if (!confirm('{{ t("location_benchmark.confirm_reset") }}')) return;
+  const loc = btn.dataset.location;
+  fetch(`/api/location-benchmark/${loc}/reset-all`, {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => location.reload()).catch(() => {});
+}
+
+function filterByCategory(val) {
+  document.querySelectorAll('#lb-table tbody tr[data-category]').forEach(tr => {
+    tr.style.display = (!val || tr.dataset.category === val) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

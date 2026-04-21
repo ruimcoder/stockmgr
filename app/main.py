@@ -25,14 +25,18 @@ from jsonschema import ValidationError as JsonSchemaValidationError
 from jsonschema import validate as jsonschema_validate
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, or_, select
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.backup_utils import create_backup, list_backups, restore_backup
+from app.gap_utils import compute_gap_rows, get_target_qty
 from app.config import get_settings
-from app.db import get_session, init_db
+from app.db import _sqlite_path_from_url, engine, get_session, init_db
 from app.food_wheel import FOOD_GROUP_BY_KEY, FOOD_GROUPS, food_group_chart_data, infer_food_group
 from app.i18n import SUPPORTED_LANGUAGES, translate
-from app.models import LocationPlan, StockItem, StockMovement, User
+from app.models import BenchmarkItem, LocationBenchmark, LocationPlan, StockItem, StockMovement, User
+from app.non_food_categories import ITEM_CATEGORIES, NON_FOOD_CATEGORIES
+from app.uom_constants import UOM_OPTIONS
 from app.pdf_utils import generate_table_pdf
 from app.schemas import (
     BarcodeLookupRequest,
@@ -69,7 +73,22 @@ async def lifespan(_: FastAPI):
                 "SECRET_KEY is set to the default insecure value. "
                 "Set a strong SECRET_KEY environment variable before running in production."
             )
+    db_file = _sqlite_path_from_url(settings.database_url)
+    if db_file is not None:
+        if not db_file.is_absolute():
+            db_file = (Path.cwd() / db_file).resolve()
+        create_backup(db_file)
     init_db()
+    from app.benchmark_seed import seed_benchmark_if_empty  # noqa: PLC0415
+    with Session(engine) as session:
+        count = seed_benchmark_if_empty(session)
+        if count:
+            logger.info("Seeded %d benchmark items", count)
+    from app.benchmark_seed import sync_location_benchmarks  # noqa: PLC0415
+    with Session(engine) as session:
+        synced = sync_location_benchmarks(session)
+        if synced:
+            logger.info("Synced %d new location benchmark rows", synced)
     yield
 
 
@@ -201,6 +220,9 @@ def _render(
         "app_version_semantic": _APP_VERSION,
         "app_build_date": _BUILD_DATE,
         "food_groups_map": _FOOD_GROUPS_MAP,
+        "non_food_categories": NON_FOOD_CATEGORIES,
+        "item_categories": ITEM_CATEGORIES,
+        "uom_options": UOM_OPTIONS,
     }
     if context:
         payload.update(context)
@@ -384,6 +406,8 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "food_group",
         "weight_capacity",
         "uom",
+        "item_category",
+        "non_food_category",
     ):
         value = form.get(key)
         if key == "storage_bucket":
@@ -396,6 +420,9 @@ def _item_payload_from_form(form: dict[str, Any]) -> dict[str, Any]:
             payload[key] = int(value) if value not in ("", None) else 0
         elif key == "weight_capacity":
             payload[key] = float(value) if value not in ("", None) else None
+        elif key in ("item_category", "non_food_category"):
+            if value not in ("", None):
+                payload[key] = value
         else:
             payload[key] = value if value not in ("", None) else None
     return payload
@@ -1202,17 +1229,25 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
             StockItem.item_type,
             StockItem.storage_location,
             StockItem.food_group,
+            StockItem.item_category,
+            StockItem.non_food_category,
             func.sum(StockItem.quantity * StockItem.unidose_per_pack).label("total_unidoses"),
             func.max(StockItem.target_unidoses_location).label("target_unidoses"),
             func.max(StockItem.unidose_per_pack).label("unidose_per_pack"),
         )
-        .group_by(StockItem.name, StockItem.item_type, StockItem.storage_location)
+        .group_by(
+            StockItem.name,
+            StockItem.item_type,
+            StockItem.storage_location,
+            StockItem.item_category,
+            StockItem.non_food_category,
+        )
         .order_by(StockItem.name, StockItem.storage_location)
     ).all()
 
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for row in location_rows:
-        name, item_type, location, food_group, total_u, target_u, per_pack = row
+        name, item_type, location, food_group, item_category, non_food_category, total_u, target_u, per_pack = row
         total_unidoses = int(total_u or 0)
         per_pack_value = max(1, int(per_pack or 1))
 
@@ -1237,6 +1272,8 @@ def shopping_list(request: Request, session: Session = Depends(get_session)):
                 "item_type": item_type,
                 "food_group": food_group,
                 "food_group_color": fg_obj.color if fg_obj else None,
+                "item_category": item_category or "food",
+                "non_food_category": non_food_category,
                 "total_quantity_to_buy": 0,
                 "distribution": [],
             }
@@ -1383,6 +1420,94 @@ async def location_plans_delete(
     return RedirectResponse("/location-plans?m=location-plan-deleted", status_code=303)
 
 
+# ── Location benchmark configuration ────────────────────────────────────────
+
+
+@app.get("/location-plans/{location}/benchmark")
+def location_benchmark_config(
+    location: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    plan = session.exec(select(LocationPlan).where(LocationPlan.location == location)).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Location not found")
+    items = session.exec(
+        select(BenchmarkItem).where(BenchmarkItem.is_active == True).order_by(BenchmarkItem.sort_order, BenchmarkItem.name)  # noqa: E712
+    ).all()
+    lb_rows = session.exec(
+        select(LocationBenchmark).where(LocationBenchmark.location == location)
+    ).all()
+    lb_map = {lb.benchmark_item_id: lb for lb in lb_rows}
+    rows = []
+    for item in items:
+        lb = lb_map.get(item.id)
+        target = get_target_qty(item, lb, plan.participants, plan.stock_duration_days)
+        rows.append({"item": item, "lb": lb, "target_qty": round(target, 3)})
+    return _render(request, "location_benchmark.html", {
+        "user": maybe_user,
+        "plan": plan,
+        "rows": rows,
+        "message": _fetch_message(request),
+    })
+
+
+@app.patch("/api/location-benchmark/{lb_id}/toggle")
+async def api_toggle_location_benchmark(
+    lb_id: int,
+    request: Request,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    lb = session.get(LocationBenchmark, lb_id)
+    if not lb:
+        raise HTTPException(status_code=404)
+    lb.is_enabled = not lb.is_enabled
+    lb.updated_at = datetime.now(UTC)
+    session.add(lb)
+    session.commit()
+    return {"id": lb_id, "is_enabled": lb.is_enabled}
+
+
+@app.patch("/api/location-benchmark/{lb_id}/override")
+async def api_set_location_benchmark_override(
+    lb_id: int,
+    request: Request,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    body = await request.json()
+    qty = body.get("qty")
+    lb = session.get(LocationBenchmark, lb_id)
+    if not lb:
+        raise HTTPException(status_code=404)
+    lb.qty_override = float(qty) if qty is not None else None
+    lb.updated_at = datetime.now(UTC)
+    session.add(lb)
+    session.commit()
+    return {"id": lb_id, "qty_override": lb.qty_override}
+
+
+@app.post("/api/location-benchmark/{location}/reset-all")
+async def api_reset_location_benchmark(
+    location: str,
+    request: Request,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    rows = session.exec(select(LocationBenchmark).where(LocationBenchmark.location == location)).all()
+    for row in rows:
+        row.qty_override = None
+        row.is_enabled = True
+        row.updated_at = datetime.now(UTC)
+        session.add(row)
+    session.commit()
+    return {"reset": len(rows)}
+
+
 @app.get("/device-check")
 def device_check(request: Request, session: Session = Depends(get_session)):
     maybe_user = _require_user_or_redirect(request, session)
@@ -1417,6 +1542,8 @@ def food_wheel_page(
             StockItem.storage_location,
             StockItem.quantity,
             StockItem.unidose_per_pack,
+        ).where(
+            or_(StockItem.item_category == "food", StockItem.item_category == None)  # noqa: E711
         )
         if location:
             query = query.where(StockItem.storage_location == location)
@@ -2231,7 +2358,8 @@ def item_delete(
     )
     return RedirectResponse("/?m=item-deleted", status_code=303)
 
-
+
+
 
 @app.get("/items/export")
 def export_items(request: Request, session: Session = Depends(get_session)):
@@ -2428,7 +2556,8 @@ def admin_toggle_admin(
     session.commit()
     return RedirectResponse("/admin/users?m=user-role-updated", status_code=303)
 
-
+
+
 
 @app.get("/admin/enrich")
 def admin_enrich_page(
@@ -2992,9 +3121,20 @@ def api_list_items(
     request: Request,
     session: Session = Depends(get_session),
     user: User = Depends(_require_api_user),
+    category: str | None = None,
+    non_food_category: str | None = None,
 ):
     _ = request, user
-    items = session.exec(select(StockItem)).all()
+    query = select(StockItem)
+    if category == "food":
+        query = query.where(
+            or_(StockItem.item_category == "food", StockItem.item_category == None)  # noqa: E711
+        )
+    elif category is not None:
+        query = query.where(StockItem.item_category == category)
+    if non_food_category is not None:
+        query = query.where(StockItem.non_food_category == non_food_category)
+    items = session.exec(query).all()
     return [_to_read_model(item) for item in items]
 
 
@@ -3208,6 +3348,288 @@ async def telegram_webhook():
             "Run scripts/telegram_copilot_bridge.py for Telegram <-> Copilot CLI chat."
         ),
     )
+
+
+class BackupRestoreRequest(BaseModel):
+    filename: str
+
+
+def _get_db_file() -> Path | None:
+    db_file = _sqlite_path_from_url(settings.database_url)
+    if db_file is not None and not db_file.is_absolute():
+        db_file = (Path.cwd() / db_file).resolve()
+    return db_file
+
+
+@app.post("/api/admin/backup")
+async def api_admin_backup(current_user: User = Depends(_require_api_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    db_file = _get_db_file()
+    backup_path = create_backup(db_file)
+    if backup_path is None:
+        raise HTTPException(status_code=404, detail="Database file not found")
+    stat = backup_path.stat()
+    return {
+        "filename": backup_path.name,
+        "size_bytes": stat.st_size,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+@app.post("/api/admin/restore")
+async def api_admin_restore(
+    req: BackupRestoreRequest, current_user: User = Depends(_require_api_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    db_file = _get_db_file()
+    ok = restore_backup(db_file, req.filename)
+    if not ok:
+        raise HTTPException(404, detail=f"Backup not found: {req.filename}")
+    return {
+        "restored": True,
+        "filename": req.filename,
+        "message": "Database restored. Please reload the application.",
+    }
+
+
+@app.get("/api/admin/backups")
+async def api_admin_list_backups(current_user: User = Depends(_require_api_user)):
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    db_file = _get_db_file()
+    return {"backups": list_backups(db_file)}
+
+
+# ---------------------------------------------------------------------------
+# Benchmark management routes (#127)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/benchmark")
+def benchmark_list(
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    items = session.exec(
+        select(BenchmarkItem).order_by(BenchmarkItem.sort_order, BenchmarkItem.name)
+    ).all()
+    return _render(
+        request,
+        "benchmark.html",
+        {"user": admin, "benchmark_items": items, "message": _fetch_message(request)},
+    )
+
+
+@app.post("/benchmark")
+async def benchmark_create(
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    _csrf: None = Depends(_validate_csrf),
+    session: Session = Depends(get_session),
+):
+    form = await request.form()
+    try:
+        qty = float(form.get("qty_per_day", 0))
+        sort_order = int(form.get("sort_order", 0))
+    except (ValueError, TypeError):
+        return _render(
+            request,
+            "benchmark.html",
+            {
+                "user": admin,
+                "benchmark_items": session.exec(
+                    select(BenchmarkItem).order_by(BenchmarkItem.sort_order, BenchmarkItem.name)
+                ).all(),
+                "message": "Invalid numeric values.",
+            },
+            status_code=422,
+        )
+    non_food_category = form.get("non_food_category") or None
+    if non_food_category == "":
+        non_food_category = None
+    item = BenchmarkItem(
+        name=str(form.get("name", "")).strip(),
+        name_pt=str(form.get("name_pt", "")).strip(),
+        item_category=str(form.get("item_category", "food")),
+        non_food_category=non_food_category,
+        qty_per_day=qty,
+        uom=str(form.get("uom", "unit")),
+        scales_with_participants="scales_with_participants" in form,
+        notes=str(form.get("notes", "")).strip() or None,
+        notes_pt=str(form.get("notes_pt", "")).strip() or None,
+        sort_order=sort_order,
+        is_active="is_active" in form,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    session.add(item)
+    session.commit()
+    return RedirectResponse("/benchmark?m=saved", status_code=303)
+
+
+@app.post("/benchmark/{item_id}/update")
+async def benchmark_update(
+    item_id: int,
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    item = session.get(BenchmarkItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Benchmark item not found.")
+    data = await request.json()
+    for field in (
+        "name", "name_pt", "item_category", "non_food_category",
+        "qty_per_day", "uom", "scales_with_participants",
+        "notes", "notes_pt", "sort_order", "is_active",
+    ):
+        if field in data:
+            setattr(item, field, data[field])
+    item.updated_at = datetime.now(UTC)
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return {"id": item.id, "name": item.name, "is_active": item.is_active}
+
+
+@app.delete("/benchmark/{item_id}")
+def benchmark_delete(
+    item_id: int,
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    item = session.get(BenchmarkItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Benchmark item not found.")
+    session.delete(item)
+    session.commit()
+    return JSONResponse({"deleted": True}, status_code=200)
+
+
+@app.post("/benchmark/{item_id}/toggle")
+def benchmark_toggle(
+    item_id: int,
+    request: Request,
+    admin: User = Depends(_require_admin_user),
+    session: Session = Depends(get_session),
+):
+    item = session.get(BenchmarkItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Benchmark item not found.")
+    item.is_active = not item.is_active
+    item.updated_at = datetime.now(UTC)
+    session.add(item)
+    session.commit()
+    return {"id": item.id, "is_active": item.is_active}
+
+
+@app.get("/gap-analysis")
+def gap_analysis_page(
+    request: Request,
+    location: str | None = None,
+    session: Session = Depends(get_session),
+):
+    maybe_user = _require_user_or_redirect(request, session)
+    if isinstance(maybe_user, RedirectResponse):
+        return maybe_user
+    user = maybe_user
+
+    plans = session.exec(select(LocationPlan).order_by(LocationPlan.location)).all()
+    selected_location = location or (plans[0].location if plans else None)
+    plan = next((p for p in plans if p.location == selected_location), None)
+
+    rows = []
+    summary = {"total": 0, "ok": 0, "partial": 0, "missing": 0}
+
+    if plan:
+        b_items = session.exec(
+            select(BenchmarkItem).where(BenchmarkItem.is_active == True)  # noqa: E712
+            .order_by(BenchmarkItem.sort_order, BenchmarkItem.name)
+        ).all()
+        lb_rows = session.exec(
+            select(LocationBenchmark).where(LocationBenchmark.location == plan.location)
+        ).all()
+        lb_map = {lb.benchmark_item_id: lb for lb in lb_rows}
+        stock_items = session.exec(
+            select(StockItem).where(StockItem.storage_location == plan.location)
+        ).all()
+
+        rows = compute_gap_rows(b_items, lb_map, stock_items, plan.participants, plan.stock_duration_days)
+        summary["total"] = len(rows)
+        for r in rows:
+            summary[r["status"]] += 1
+
+    return _render(request, "gap_analysis.html", {
+        "user": user,
+        "plans": plans,
+        "plan": plan,
+        "selected_location": selected_location,
+        "rows": rows,
+        "summary": summary,
+    })
+
+
+@app.get("/api/gap-analysis")
+async def api_gap_analysis(
+    request: Request,
+    location: str | None = None,
+    user=Depends(_require_api_user),
+    session: Session = Depends(get_session),
+):
+    if not location:
+        raise HTTPException(status_code=400, detail="location parameter is required")
+    plan = session.exec(select(LocationPlan).where(LocationPlan.location == location)).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Location not found")
+    b_items = session.exec(
+        select(BenchmarkItem).where(BenchmarkItem.is_active == True)  # noqa: E712
+    ).all()
+    lb_rows = session.exec(
+        select(LocationBenchmark).where(LocationBenchmark.location == location)
+    ).all()
+    lb_map = {lb.benchmark_item_id: lb for lb in lb_rows}
+    stock_items = session.exec(
+        select(StockItem).where(StockItem.storage_location == location)
+    ).all()
+    rows = compute_gap_rows(b_items, lb_map, stock_items, plan.participants, plan.stock_duration_days)
+    items = [
+        {
+            "benchmark_item_id": r["benchmark_item"].id,
+            "name": r["benchmark_item"].name,
+            "name_pt": r["benchmark_item"].name_pt,
+            "item_category": r["benchmark_item"].item_category,
+            "non_food_category": r["benchmark_item"].non_food_category,
+            "uom": r["benchmark_item"].uom,
+            "scales_with_participants": r["benchmark_item"].scales_with_participants,
+            "qty_per_day": r["benchmark_item"].qty_per_day,
+            "target_stock": r["target_qty"],
+            "current_stock": r["current_stock"],
+            "gap": r["gap"],
+            "coverage_pct": r["coverage_pct"],
+            "days_covered": r["days_covered"],
+            "status": r["status"],
+        }
+        for r in rows
+    ]
+    summary = {"total_items": len(items), "fully_stocked": 0, "partially_stocked": 0, "missing": 0}
+    for item in items:
+        if item["status"] == "ok":
+            summary["fully_stocked"] += 1
+        elif item["status"] == "partial":
+            summary["partially_stocked"] += 1
+        else:
+            summary["missing"] += 1
+    return {
+        "location": plan.location,
+        "participants": plan.participants,
+        "stock_duration_days": plan.stock_duration_days,
+        "summary": summary,
+        "items": items,
+    }
 
 
 @app.exception_handler(HTTPException)

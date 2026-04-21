@@ -28,7 +28,7 @@ class StockItem(SQLModel, table=True):
     item_type: str = Field(nullable=False)
     storage_location: str = Field(nullable=False)
     storage_bucket: str = Field(default="", nullable=False)
-    expiry_date: date = Field(nullable=False)
+    expiry_date: date | None = Field(default=None)
     quantity: int = Field(default=0, nullable=False)
     unidose_per_pack: int = Field(default=1, nullable=False)
     target_unidoses_location: int = Field(default=0, nullable=False)
@@ -43,8 +43,10 @@ class StockItem(SQLModel, table=True):
     food_group: str | None = Field(default=None)
     weight_capacity: float | None = Field(default=None)
     uom: str | None = Field(default=None)
+    item_category: str = Field(default="food", nullable=False)
+    non_food_category: str | None = Field(default=None)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+    created_at: datetime= Field(default_factory=lambda: datetime.now(UTC), nullable=False)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
 
 
@@ -81,3 +83,32 @@ class StockMovement(SQLModel, table=True):
     delta: int = Field(nullable=False)
     note: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+
+
+class BenchmarkItem(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(nullable=False)
+    name_pt: str = Field(nullable=False)
+    item_category: str = Field(nullable=False)        # "food" | "non_food"
+    non_food_category: str | None = Field(default=None)  # e.g. "medicine"
+    qty_per_day: float = Field(nullable=False)        # per person (or household if scales=False)
+    uom: str = Field(nullable=False)                  # from UOM_OPTIONS keys
+    scales_with_participants: bool = Field(default=True)
+    notes: str | None = Field(default=None)
+    notes_pt: str | None = Field(default=None)
+    sort_order: int = Field(default=0)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class LocationBenchmark(SQLModel, table=True):
+    """Per-location overrides for benchmark items."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    location: str = Field(index=True, nullable=False)
+    benchmark_item_id: int = Field(index=True, nullable=False)
+    is_enabled: bool = Field(default=True)
+    qty_override: float | None = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

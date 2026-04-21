@@ -9,3 +9,6 @@ test_stockmgr.db
 htmlcov/
 playwright-report/
 test-results/
+resume-session.cmd
+
+backups/

@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LocationPlanCreate(BaseModel):
@@ -25,7 +25,7 @@ class ItemBase(BaseModel):
     item_type: str = Field(min_length=1)
     storage_location: str = Field(min_length=1)
     storage_bucket: str = ""
-    expiry_date: date
+    expiry_date: date | None = None
     quantity: int = Field(default=0, ge=0)
     unidose_per_pack: int = Field(default=1, ge=1)
     target_unidoses_location: int = Field(default=0, ge=0)
@@ -40,6 +40,17 @@ class ItemBase(BaseModel):
     food_group: str | None = None
     weight_capacity: float | None = None
     uom: str | None = None
+    item_category: str = "food"
+    non_food_category: str | None = None
+
+    @model_validator(mode="after")
+    def expiry_required_for_food_and_expiring_items(self) -> "ItemBase":
+        requires_expiry = self.item_category == "food" or self.non_food_category in (
+            "medicine","seeds","energy",
+        )
+        if requires_expiry and self.expiry_date is None:
+            raise ValueError("expiry_date is required for food, medicine, seeds and energy items")
+        return self
 
     @field_validator("name", "item_type", "storage_location")
     @classmethod

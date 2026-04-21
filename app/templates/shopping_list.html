@@ -2,6 +2,15 @@
 {% block content %}
 <h1 class="h4 mb-3">{{ t("shopping.title") }}</h1>
 
+<div class="mb-3 d-flex align-items-center gap-2">
+  <label class="form-label mb-0">{{ t("filter.category") }}:</label>
+  <select class="form-select form-select-sm w-auto" onchange="filterByCategory(this.value)">
+    <option value="">{{ t("filter.all") }}</option>
+    <option value="food">{{ t("category.food") }}</option>
+    <option value="non_food">{{ t("category.non_food") }}</option>
+  </select>
+</div>
+
 <div class="card">
   <div class="table-responsive">
     <table class="table table-striped mb-0" data-enhanced-table>
@@ -15,10 +24,20 @@
       </thead>
       <tbody>
         {% for row in rows %}
-        <tr>
+        <tr data-category="{{ row.item_category or 'food' }}">
           <td>
             <a class="text-decoration-none item-link" href="/products/by-name/{{ row.item_type | urlencode_path }}/{{ row.name | urlencode_path }}" data-product-name="{{ row.name }}" data-product-image="{{ row.image_url or '' }}">{{ row.name }}</a>
             {% if row.food_group and food_groups_map.get(row.food_group) %}{% set fg = food_groups_map[row.food_group] %}<span class="d-inline-block rounded-circle border border-white ms-1" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}
+            {% if row.item_category == "non_food" %}
+              {% if row.non_food_category == "medicine" %}<span class="badge badge-medicine ms-1">💊 {{ t('badge.medicine') }}</span>
+              {% elif row.non_food_category == "energy" %}<span class="badge badge-energy ms-1">⛽ {{ t('badge.energy') }}</span>
+              {% elif row.non_food_category == "tools" %}<span class="badge badge-tools ms-1">🔧 {{ t('badge.tools') }}</span>
+              {% elif row.non_food_category == "hygiene" %}<span class="badge badge-hygiene ms-1">🧼 {{ t('badge.hygiene') }}</span>
+              {% elif row.non_food_category == "seeds" %}<span class="badge badge-seeds ms-1">🌱 {{ t('badge.seeds') }}</span>
+              {% elif row.non_food_category == "communication" %}<span class="badge badge-communication ms-1">📻 {{ t('badge.communication') }}</span>
+              {% elif row.non_food_category == "security" %}<span class="badge badge-security ms-1">🛡️ {{ t('badge.security') }}</span>
+              {% else %}<span class="badge badge-other ms-1">📦 {{ t('badge.other') }}</span>{% endif %}
+            {% endif %}
           </td>
           <td>{{ row.item_type }}</td>
           <td>{{ row.total_quantity_to_buy }}</td>
@@ -33,5 +52,13 @@
     </table>
   </div>
 </div>
+
+<script>
+function filterByCategory(val) {
+  document.querySelectorAll('[data-enhanced-table] tbody tr[data-category]').forEach(function(tr) {
+    tr.style.display = (!val || tr.dataset.category === val) ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}
 

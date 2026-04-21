@@ -91,6 +91,7 @@
           <td><span class="badge bg-primary fs-6">{{ plan.total_meal_occasions }}</span></td>
           <td class="text-nowrap">
             <a class="btn btn-sm btn-outline-primary" href="/location-plans/{{ plan.id }}/edit" title="{{ t('common.edit') }}"><i class="bi bi-pencil"></i></a>
+            <a class="btn btn-sm btn-outline-secondary" href="/location-plans/{{ plan.location | urlencode_path }}/benchmark" title="{{ t('location_benchmark.configure') }}"><i class="bi bi-list-check"></i></a>
             <form method="post" action="/location-plans/{{ plan.id }}/delete" class="d-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token }}" />
               <button class="btn btn-sm btn-outline-danger" type="submit" title="{{ t('common.delete') }}" onclick="return confirm('{{ t('common.confirm_delete') }}')"><i class="bi bi-trash"></i></button>

@@ -1,6 +1,7 @@
 # stockmgr
 
-![Version](https://img.shields.io/badge/version-1.2.7-blue)
+![version](https://img.shields.io/badge/version-1.4.4-blue)
+
 
 Web MVP to manage SHTF stock inventorywith OAuth-capable authentication, barcode-assisted item entry, CSV/XLSX import, renewal-date calendar sync, and configurable product-information providers.
 
@@ -391,3 +392,5 @@ npx --yes playwright@1.54.2 test -c playwright.config.js
 
 ## Changelog
 See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+

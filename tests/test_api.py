@@ -857,3 +857,106 @@ def test_food_wheel_with_location_plan(client):
     response = client.get("/food-wheel")
     assert response.status_code == 200
     assert "Food Wheel" in response.text
+
+
+# --- Admin backup API tests ---
+
+def test_api_admin_backup_returns_200_for_admin(client):
+    resp = client.post("/api/admin/backup")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "filename" in data
+    assert "backup" in data["filename"]
+    assert data["size_bytes"] > 0
+
+
+def test_api_admin_backups_list(client):
+    client.post("/api/admin/backup")
+    resp = client.get("/api/admin/backups")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "backups" in data
+    assert isinstance(data["backups"], list)
+    assert len(data["backups"]) >= 1
+
+
+def test_api_admin_restore_valid_filename(client):
+    backup_resp = client.post("/api/admin/backup")
+    assert backup_resp.status_code == 200
+    filename = backup_resp.json()["filename"]
+    restore_resp = client.post("/api/admin/restore", json={"filename": filename})
+    assert restore_resp.status_code == 200
+    assert restore_resp.json()["restored"] is True
+
+
+def test_api_admin_restore_nonexistent_returns_404(client):
+    resp = client.post("/api/admin/restore", json={"filename": "nonexistent_backup_99999999_000000.db"})
+    assert resp.status_code == 404
+
+
+def test_api_admin_backup_403_for_non_admin(anon_client):
+    with Session(engine) as session:
+        user = User(
+            email="regular@example.com",
+            display_name="Regular",
+            oauth_provider="dev",
+            oauth_subject="regular@example.com",
+            approval_status="approved",
+            is_admin=False,
+        )
+        session.add(user)
+        session.commit()
+    anon_client.post("/auth/dev-login", data={"email": "regular@example.com"}, follow_redirects=False)
+    resp = anon_client.post("/api/admin/backup")
+    assert resp.status_code == 403
+
+
+def test_api_items_category_in_response(client):
+    resp_create = client.post(
+        "/api/items",
+        json={
+            "name": "Canned Beans",
+            "item_type": "food",
+            "storage_location": "Pantry",
+            "expiry_date": "2030-06-01",
+            "quantity": 2,
+            "unidose_per_pack": 1,
+            "target_unidoses_location": 4,
+            "item_category": "food",
+        },
+    )
+    resp = client.get("/api/items")
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) > 0
+    assert "item_category" in items[0]
+    assert "non_food_category" in items[0]
+
+
+def test_api_items_filter_by_category_food(client):
+    client.post("/api/items", json={"name":"Rice","item_type":"food","storage_location":"Pantry","expiry_date":"2030-06-01","quantity":1,"unidose_per_pack":1,"target_unidoses_location":2,"item_category":"food"})
+    client.post("/api/items", json={"name":"Ibuprofen","item_type":"medicine","storage_location":"Cabinet","expiry_date":"2030-06-01","quantity":1,"unidose_per_pack":1,"target_unidoses_location":2,"item_category":"non_food","non_food_category":"medicine"})
+    resp = client.get("/api/items?category=food")
+    assert resp.status_code == 200
+    for item in resp.json():
+        assert item["item_category"] in ("food", None)
+
+
+def test_api_items_filter_by_category_non_food(client):
+    resp = client.get("/api/items?category=non_food")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+def test_api_items_filter_by_non_food_category(client):
+    client.post("/api/items", json={"name":"Paracetamol","item_type":"medicine","storage_location":"Cabinet","expiry_date":"2030-06-01","quantity":1,"unidose_per_pack":1,"target_unidoses_location":2,"item_category":"non_food","non_food_category":"medicine"})
+    resp = client.get("/api/items?non_food_category=medicine")
+    assert resp.status_code == 200
+    for item in resp.json():
+        assert item["non_food_category"] == "medicine"
+
+
+def test_api_items_expiry_null_ok(client):
+    resp = client.get("/api/items")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)

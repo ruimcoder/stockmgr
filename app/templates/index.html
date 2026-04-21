@@ -45,6 +45,24 @@
       {% endfor %}
     </select>
   </div>
+  <div class="col-md-3">
+    <label class="form-label">{{ t("filter.category") }}</label>
+    <select class="form-select" id="category-filter" onchange="filterByCategory(this.value)">
+      <option value="">{{ t("filter.all") }}</option>
+      <option value="food">{{ t("category.food") }}</option>
+      <option value="non_food">{{ t("category.non_food") }}</option>
+      <optgroup label="Non-food sub-categories">
+        <option value="nfc:medicine">💊 {{ t("badge.medicine") }}</option>
+        <option value="nfc:energy">⛽ {{ t("badge.energy") }}</option>
+        <option value="nfc:tools">🔧 {{ t("badge.tools") }}</option>
+        <option value="nfc:hygiene">🧼 {{ t("badge.hygiene") }}</option>
+        <option value="nfc:seeds">🌱 {{ t("badge.seeds") }}</option>
+        <option value="nfc:communication">📻 {{ t("badge.communication") }}</option>
+        <option value="nfc:security">🛡️ {{ t("badge.security") }}</option>
+        <option value="nfc:other">📦 {{ t("badge.other") }}</option>
+      </optgroup>
+    </select>
+  </div>
   <div class="col-md-2 d-flex align-items-end">
     <button class="btn btn-primary w-100" type="submit">{{ t("filter.apply") }}</button>
   </div>
@@ -69,8 +87,8 @@
       </thead>
       <tbody>
       {% for item in items %}
-        <tr>
-          <td><a class="text-decoration-none item-link" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}" data-product-name="{{ item.name }}" data-product-image="{{ item.image_url or '' }}">{{ item.name }}</a>{% if item.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if item.nutriscore in ['a','b'] %}success{% elif item.nutriscore == 'c' %}warning{% elif item.nutriscore == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ item.nutriscore | upper }}">{{ item.nutriscore | upper }}</span>{% endif %}{% if item.food_group and food_groups_map.get(item.food_group) %}{% set fg = food_groups_map[item.food_group] %} <span class="d-inline-block rounded-circle border border-white" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}</td>
+        <tr data-category="{{ item.item_category or 'food' }}" data-nfc="{{ item.non_food_category or '' }}">
+          <td><a class="text-decoration-none item-link" href="/products/by-name/{{ item.item_type | urlencode_path }}/{{ item.name | urlencode_path }}"data-product-name="{{ item.name }}" data-product-image="{{ item.image_url or '' }}">{{ item.name }}</a> {% if item.item_category == "non_food" %}{% if item.non_food_category == "medicine" %}<span title="{{ t('badge.medicine') }}">💊</span>{% elif item.non_food_category == "energy" %}<span title="{{ t('badge.energy') }}">⛽</span>{% elif item.non_food_category == "tools" %}<span title="{{ t('badge.tools') }}">🔧</span>{% elif item.non_food_category == "hygiene" %}<span title="{{ t('badge.hygiene') }}">🧼</span>{% elif item.non_food_category == "seeds" %}<span title="{{ t('badge.seeds') }}">🌱</span>{% elif item.non_food_category == "communication" %}<span title="{{ t('badge.communication') }}">📻</span>{% elif item.non_food_category == "security" %}<span title="{{ t('badge.security') }}">🛡️</span>{% else %}<span title="{{ t('badge.other') }}">📦</span>{% endif %}{% else %}<span title="{{ t('badge.food') }}">🌿</span>{% endif %}{% if item.nutriscore %} <span class="badge ms-1" style="background:var(--bs-{% if item.nutriscore in ['a','b'] %}success{% elif item.nutriscore == 'c' %}warning{% elif item.nutriscore == 'd' %}danger{% else %}secondary{% endif %});" data-bs-toggle="tooltip" title="Nutri-score {{ item.nutriscore | upper }}">{{ item.nutriscore | upper }}</span>{% endif %}{% if item.food_group and food_groups_map.get(item.food_group) %}{% set fg = food_groups_map[item.food_group] %} <span class="d-inline-block rounded-circle border border-white" style="width:12px;height:12px;background:{{ fg.color }};vertical-align:middle;" data-bs-toggle="tooltip" title="{{ fg.name_en }}"></span>{% endif %}</td>
           <td>{{ item.item_type }}</td>
           <td>{{ item.barcode or "-" }}</td>
           <td>{{ item.batch_code or "-" }}</td>
@@ -96,5 +114,18 @@
     </table>
   </div>
 </div>
+<script>
+function filterByCategory(val) {
+  document.querySelectorAll('[data-enhanced-table] tbody tr[data-category]').forEach(function(tr) {
+    if (!val) { tr.style.display = ''; return; }
+    if (val.startsWith('nfc:')) {
+      var nfc = val.slice(4);
+      tr.style.display = (tr.dataset.nfc === nfc) ? '' : 'none';
+    } else {
+      tr.style.display = (tr.dataset.category === val) ? '' : 'none';
+    }
+  });
+}
+</script>
 {% endblock %}
 

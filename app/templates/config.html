@@ -21,6 +21,11 @@
       {{ t("config.settings_tab") }}
     </button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-benchmark" data-bs-toggle="tab" data-bs-target="#pane-benchmark" type="button" role="tab">
+      {{ t("settings.benchmark.title") }}
+    </button>
+  </li>
 </ul>
 
 <div class="tab-content">
@@ -62,6 +67,14 @@
         </table>
       </div>
     </div>
+  </div>
+
+  <!-- Tab 3: Benchmark List -->
+  <div class="tab-pane fade" id="pane-benchmark" role="tabpanel">
+    <div class="card"><div class="card-body">
+      <p>{{ t("settings.benchmark.manage") }}</p>
+      <a href="/benchmark" class="btn btn-outline-primary">{{ t("settings.benchmark.manage") }}</a>
+    </div></div>
   </div>
 </div>
 <script>

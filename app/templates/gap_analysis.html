@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 mb-0">{{ t("gap.title") }}</h1>
+</div>
+
+<!-- Location selector -->
+<form method="get" action="/gap-analysis" class="mb-4 d-flex align-items-center gap-2">
+  <label class="form-label mb-0 fw-semibold">{{ t("gap.select_location") }}:</label>
+  <select name="location" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+    {% for p in plans %}
+    <option value="{{ p.location }}" {% if p.location == selected_location %}selected{% endif %}>
+      {{ p.location }} ({{ p.participants }}p / {{ p.stock_duration_days }}d)
+    </option>
+    {% endfor %}
+  </select>
+</form>
+
+{% if not plan %}
+<div class="alert alert-info">{{ t("location_plan.no_plans") }}</div>
+{% else %}
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold">{{ summary.total }}</div>
+        <div class="text-muted small">{{ t("gap.summary_total") }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-success">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-success">{{ summary.ok }}</div>
+        <div class="text-muted small">🟢 {{ t("gap.summary_ok") }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-warning">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-warning">{{ summary.partial }}</div>
+        <div class="text-muted small">🟡 {{ t("gap.summary_partial") }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-danger">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-danger">{{ summary.missing }}</div>
+        <div class="text-muted small">🔴 {{ t("gap.summary_missing") }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Gap table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0" data-enhanced-table>
+      <thead>
+        <tr>
+          <th>{{ t("benchmark.name") }}</th>
+          <th>{{ t("benchmark.category") }}</th>
+          <th>{{ t("gap.days_covered") }}</th>
+          <th>{{ t("gap.target_days") }}</th>
+          <th>{{ t("gap.current_stock") }}</th>
+          <th>{{ t("gap.target_stock") }}</th>
+          <th>{{ t("benchmark.uom") }}</th>
+          <th>{{ t("gap.coverage") }}</th>
+          <th>{{ t("gap.status") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="{% if row.status == 'ok' %}table-success{% elif row.status == 'partial' %}table-warning{% else %}table-danger{% endif %}">
+          <td>{% if lang == 'pt' %}{{ row.benchmark_item.name_pt }}{% else %}{{ row.benchmark_item.name }}{% endif %}</td>
+          <td>
+            <span class="badge bg-light text-dark">
+              {{ t("nfc." ~ row.benchmark_item.non_food_category) if row.benchmark_item.non_food_category else t("category.food") }}
+            </span>
+          </td>
+          <td>{{ row.days_covered }}d</td>
+          <td>{{ plan.stock_duration_days }}d</td>
+          <td>{{ row.current_stock }}</td>
+          <td>{{ row.target_qty }}</td>
+          <td>{{ row.benchmark_item.uom }}</td>
+          <td>
+            <div class="progress" style="height:18px;min-width:80px">
+              <div class="progress-bar {% if row.status == 'ok' %}bg-success{% elif row.status == 'partial' %}bg-warning{% else %}bg-danger{% endif %}"
+                   style="width:{{ row.coverage_pct }}%">
+                {{ row.coverage_pct }}%
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if row.status == 'ok' %}🟢 {{ t("gap.status_ok") }}
+            {% elif row.status == 'partial' %}🟡 {{ t("gap.status_partial") }}
+            {% else %}🔴 {{ t("gap.status_missing") }}
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">{{ t("benchmark.no_items") }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="mt-3 d-flex gap-3 small text-muted">
+  <span>🟢 {{ t("gap.status_ok") }} ≥ 100%</span>
+  <span>🟡 {{ t("gap.status_partial") }} 10–99%</span>
+  <span>🔴 {{ t("gap.status_missing") }} &lt; 10%</span>
+</div>
+{% endif %}
+{% endblock %}
